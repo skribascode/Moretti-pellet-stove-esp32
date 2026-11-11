@@ -1,0 +1,141 @@
+# ESPHome config: ESP32 <-> Micronova pellet stove board (tested on a Moretti Design A7 SAT Glass)
+#
+# Keep `name: poele`: the Home Assistant package and the Lovelace card expect
+# entity IDs such as switch.poele_poele, sensor.poele_etat, number.poele_niveau_de_flamme...
+# If you rename the device, update homeassistant/packages/pellet_stove.yaml and the card config.
+#
+# Secrets go in your ESPHome secrets.yaml (see secrets.example.yaml).
+
+esphome:
+  name: poele
+  friendly_name: Poêle
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: !secret api_key_poele
+
+ota:
+  - platform: esphome
+    password: !secret ota_password_poele
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Do NOT set `power_save_mode: none` while bluetooth_proxy is enabled:
+  # Wi-Fi and BLE share the radio and ESPHome refuses that combination.
+  ap:
+    ssid: "Poele Fallback"
+    password: !secret ap_password_poele
+
+captive_portal:
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# Optional: turn the stove ESP into a Home Assistant Bluetooth proxy.
+# Handy to receive a BLE thermometer placed in the stove room (SwitchBot, Xiaomi, ...).
+# Remove these two blocks if you don't need it.
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+
+bluetooth_proxy:
+  active: true
+
+# ---------------------------------------------------------------- Micronova bus
+# Single-wire half-duplex bus, 1200 baud 8N2, isolated with 3 PC817 (see README).
+uart:
+  id: micronova_port
+  tx_pin: GPIO17
+  rx_pin:
+    number: GPIO16
+    mode:
+      input: true
+      pullup: true        # internal pull-up, replaces the 10 kΩ resistor
+  baud_rate: 1200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 2
+
+micronova:
+  uart_id: micronova_port
+  enable_rx_pin: GPIO4    # drives U3: RX is only enabled when the ESP is not transmitting (no echo)
+
+# Polling intervals are deliberately long: every frame is a chance to collide
+# with the original remote control if it is still in use.
+text_sensor:
+  - platform: micronova
+    stove_state:
+      name: "État"
+      update_interval: 60s
+      # Optional French translation of the states (the card understands both)
+      filters:
+        - map:
+            - Off -> Éteint
+            - Start -> Démarrage
+            - Pellets loading -> Chargement des granulés
+            - Pellets Loading -> Chargement des granulés
+            - Ignition -> Allumage
+            - Working -> En chauffe
+            - Brazier cleaning -> Nettoyage du brasier
+            - Brazier Cleaning -> Nettoyage du brasier
+            - Final cleaning -> Extinction (nettoyage final)
+            - Final Cleaning -> Extinction (nettoyage final)
+            - Standby -> Veille (température atteinte)
+            - "No pellets alarm -> Alarme : plus de granulés"
+            - "No ignition alarm -> Alarme : échec d'allumage"
+            - Undefined alarm -> Alarme
+  - platform: wifi_info
+    ip_address:
+      name: "Adresse IP"
+  - platform: version
+    name: "Version ESPHome"
+    hide_timestamp: true
+
+sensor:
+  - platform: micronova
+    room_temperature:
+      name: "Température ambiante"   # stove/remote reading, used as fallback only
+      update_interval: 120s
+    fumes_temperature:
+      name: "Température fumées"
+      memory_location: 0x00
+      memory_address: 0x58           # checked hot/cold on this stove (0x48 gives nearly the same value)
+      update_interval: 300s
+    stove_power:
+      name: "Puissance"
+      update_interval: 120s
+  - platform: wifi_signal
+    name: "Signal wifi"
+    update_interval: 60s
+  - platform: uptime
+    name: "Dernier redémarrage ESP"
+    type: timestamp
+
+number:
+  - platform: micronova
+    power_level:
+      name: "Niveau de flamme"
+      update_interval: 300s
+
+switch:
+  # U3's LED is fed from GPIO18 (through R3). Kept ON permanently.
+  # If you wire R3 to 3V3 instead, you can delete this switch.
+  - platform: gpio
+    pin: GPIO18
+    id: u3_supply
+    internal: true
+    restore_mode: ALWAYS_ON
+  - platform: micronova
+    stove:
+      name: "Poêle"
+      update_interval: 120s

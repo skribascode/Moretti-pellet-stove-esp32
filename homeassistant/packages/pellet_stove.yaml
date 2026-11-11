@@ -1,0 +1,115 @@
+# Home Assistant package: helpers + thermostat/schedule automation for the pellet stove.
+#
+# Install:
+#   1. configuration.yaml ->   homeassistant:
+#                                packages: !include_dir_named packages
+#   2. Copy this file to <config>/packages/pellet_stove.yaml
+#   3. Replace sensor.room_temperature below with YOUR room thermometer
+#      (any temperature sensor works: BLE, Zigbee, Wi-Fi...). If it is unavailable,
+#      the automation falls back to the stove's own reading.
+#   4. Restart Home Assistant, then edit the time slots from the UI
+#      (Settings -> Devices & services -> Helpers -> "Poêle - plages horaires").
+
+input_boolean:
+  poele_programmation:
+    name: Poêle - programmation
+    icon: mdi:calendar-clock
+
+input_number:
+  poele_consigne:
+    name: Poêle - consigne
+    min: 15
+    max: 25
+    step: 0.5
+    unit_of_measurement: "°C"
+    mode: slider
+    icon: mdi:thermometer
+
+input_select:
+  poele_mode_programmation:
+    name: Poêle - mode de programmation
+    options:
+      - "Horaire + température"   # heat during time slots, only if below setpoint
+      - "Horaire seul"            # heat during time slots, ignore temperature
+      - "Température seule"       # plain thermostat, ignore time slots
+    icon: mdi:tune-variant
+
+# Example slots only: change them to fit your life (UI editing is easier).
+schedule:
+  poele_plages_horaires:
+    name: Poêle - plages horaires
+    icon: mdi:calendar-week
+    monday: &weekday
+      - from: "06:00:00"
+        to: "08:30:00"
+      - from: "17:00:00"
+        to: "22:00:00"
+    tuesday: *weekday
+    wednesday: *weekday
+    thursday: *weekday
+    friday: *weekday
+    saturday: &weekend
+      - from: "08:00:00"
+        to: "22:30:00"
+    sunday: *weekend
+
+automation:
+  - id: poele_programmation
+    alias: Poêle - programmation
+    description: >-
+      Turns the stove on/off from the time slots and/or the room temperature
+      (±0.5 °C hysteresis), with anti short-cycle protection.
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/5"
+      - trigger: state
+        entity_id:
+          - schedule.poele_plages_horaires
+          - input_boolean.poele_programmation
+          - input_select.poele_mode_programmation
+          - input_number.poele_consigne
+    conditions:
+      - condition: state
+        entity_id: input_boolean.poele_programmation
+        state: "on"
+      # Do nothing while the ESP is offline
+      - condition: template
+        value_template: "{{ states('switch.poele_poele') in ['on', 'off'] }}"
+    variables:
+      mode: "{{ states('input_select.poele_mode_programmation') }}"
+      # Room thermometer first, stove reading as fallback. Values <= 3 °C are treated as invalid.
+      t: >-
+        {% set s = states('sensor.room_temperature') | float(-100) %}
+        {% set r = states('sensor.poele_temperature_ambiante') | float(0) %}
+        {{ s if s > 3 else r }}
+      t_valide: "{{ t > 3 }}"
+      c: "{{ states('input_number.poele_consigne') | float(20) }}"
+      allume: "{{ is_state('switch.poele_poele', 'on') }}"
+      etat: "{{ states('sensor.poele_etat') }}"
+      plage: "{{ is_state('schedule.poele_plages_horaires', 'on') }}"
+      depuis_min: >-
+        {{ ((now() - states.switch.poele_poele.last_changed).total_seconds() / 60) | round(0) }}
+      # Hysteresis: keep heating up to setpoint +0.5, restart below setpoint -0.5
+      temp_ok: "{{ (t < c + 0.5) if allume else (t < c - 0.5) }}"
+      voulu: >-
+        {% if mode == 'Horaire seul' %}{{ plage }}{% elif not t_valide %}{{ plage if mode != 'Température seule' else false }}{% elif mode == 'Température seule' %}{{ temp_ok }}{% else %}{{ plage and temp_ok }}{% endif %}
+    actions:
+      - choose:
+          # ON: wanted, currently off, fully cooled down, and off for at least 30 min
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ voulu and not allume and etat in ['Off', 'Éteint'] and depuis_min >= 30 }}
+            sequence:
+              - action: switch.turn_on
+                target:
+                  entity_id: switch.poele_poele
+          # OFF: not wanted anymore and running for at least 45 min
+          - conditions:
+              - condition: template
+                value_template: "{{ not voulu and allume and depuis_min >= 45 }}"
+            sequence:
+              - action: switch.turn_off
+                target:
+                  entity_id: switch.poele_poele

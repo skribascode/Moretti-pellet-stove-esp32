@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" font-family="Segoe UI,Helvetica,Arial,sans-serif">
+<style>
+.w{fill:none;stroke:#2b2f33;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.d{fill:none;stroke:#1e6fe0;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.p{fill:none;stroke:#d9480f;stroke-width:2.2;stroke-linecap:round}
+.s{fill:none;stroke:#2b2f33;stroke-width:2}
+.t{font-size:14px;fill:#2b2f33}
+.tb{font-size:14px;fill:#2b2f33;font-weight:600}
+.ts{font-size:12px;fill:#5f6670}
+.pin{font-size:11px;fill:#5f6670}
+.h{font-size:17px;font-weight:700;fill:#1b1e21}
+.dot{fill:#2b2f33}
+</style>
+<rect x="1" y="1" width="998" height="698" rx="14" fill="#ffffff" stroke="#d0d5da"/>
+<text x="40" y="36" class="h" text-anchor="start">Micronova pellet stove ⇄ ESP32 — interface schematic</text>
+<rect x="40" y="60" width="200" height="580" rx="12" fill="#1f2328"/>
+<text x="140" y="92" class="h" text-anchor="middle" fill="#fff" style="fill:#fff">ESP32</text>
+<text x="140" y="112" text-anchor="middle" style="font-size:12px;fill:#aab2bb">DevKit 30 pins, USB-C</text>
+<text x="230" y="160" text-anchor="end" style="font-size:13px;fill:#fff;font-weight:600">GPIO17 · TX</text>
+<circle cx="240" cy="155" r="5" fill="#c9a227"/>
+<text x="230" y="280" text-anchor="end" style="font-size:13px;fill:#fff;font-weight:600">GPIO16 · RX</text>
+<circle cx="240" cy="275" r="5" fill="#c9a227"/>
+<text x="230" y="583" text-anchor="end" style="font-size:13px;fill:#fff;font-weight:600">GPIO4 · RX enable</text>
+<circle cx="240" cy="578" r="5" fill="#c9a227"/>
+<text x="230" y="611" text-anchor="end" style="font-size:13px;fill:#fff;font-weight:600">GPIO18 · U3 supply</text>
+<circle cx="240" cy="606" r="5" fill="#c9a227"/>
+<text x="60" y="380" style="font-size:13px;fill:#fff;font-weight:600">3V3</text><text x="104" y="380" style="font-size:13px;fill:#aab2bb">→ net +3V3</text>
+<text x="60" y="414" style="font-size:13px;fill:#fff;font-weight:600">VIN</text><text x="104" y="414" style="font-size:13px;fill:#aab2bb">→ net +5V</text>
+<text x="60" y="448" style="font-size:13px;fill:#fff;font-weight:600">GND</text><text x="104" y="448" style="font-size:13px;fill:#aab2bb">→ net ⏚</text>
+<text x="60" y="490" style="font-size:12px;fill:#aab2bb">Powered by its own</text><text x="60" y="506" style="font-size:12px;fill:#aab2bb">5 V USB-C adapter</text>
+<g>
+<rect x="440" y="70" width="90" height="110" rx="8" fill="#f4f6f8" stroke="#2b2f33" stroke-width="2"/>
+<polyline class="s" points="440,95 465,95 465,117"/>
+<polyline class="s" points="465,133 465,155 440,155"/>
+<path d="M454,117 L476,117 L465,133 Z" fill="#2b2f33"/>
+<polyline class="s" points="454,133 476,133"/>
+<polyline class="s" points="480,118 494,122"/>
+<path d="M494,122 l-7,-5 l-1,6 Z" fill="#2b2f33"/>
+<polyline class="s" points="480,130 494,134"/>
+<path d="M494,134 l-7,-5 l-1,6 Z" fill="#2b2f33"/>
+<polyline class="s" points="502,108 502,142"/>
+<polyline class="s" points="502,118 516,106 516,95 530,95"/>
+<polyline class="s" points="502,132 516,144 516,155 530,155"/>
+<path d="M516,144 l-9,-2 l4,-5 Z" fill="#2b2f33"/>
+</g>
+<text x="485" y="60" class="tb" text-anchor="middle">U1 · PC817</text>
+<text x="485" y="198" class="ts" text-anchor="middle">transmit (open collector)</text>
+<text x="446" y="90" class="pin" text-anchor="start">1</text>
+<text x="446" y="150" class="pin" text-anchor="start">2</text>
+<text x="524" y="90" class="pin" text-anchor="end">4</text>
+<text x="524" y="150" class="pin" text-anchor="end">3</text>
+<g transform="translate(970,0) scale(-1,1)">
+<rect x="440" y="250" width="90" height="110" rx="8" fill="#f4f6f8" stroke="#2b2f33" stroke-width="2"/>
+<polyline class="s" points="440,275 465,275 465,297"/>
+<polyline class="s" points="465,313 465,335 440,335"/>
+<path d="M454,297 L476,297 L465,313 Z" fill="#2b2f33"/>
+<polyline class="s" points="454,313 476,313"/>
+<polyline class="s" points="480,298 494,302"/>
+<path d="M494,302 l-7,-5 l-1,6 Z" fill="#2b2f33"/>
+<polyline class="s" points="480,310 494,314"/>
+<path d="M494,314 l-7,-5 l-1,6 Z" fill="#2b2f33"/>
+<polyline class="s" points="502,288 502,322"/>
+<polyline class="s" points="502,298 516,286 516,275 530,275"/>
+<polyline class="s" points="502,312 516,324 516,335 530,335"/>
+<path d="M516,324 l-9,-2 l4,-5 Z" fill="#2b2f33"/>
+</g>
+<text x="485" y="240" class="tb" text-anchor="middle">U2 · PC817</text>
+<text x="485" y="378" class="ts" text-anchor="middle">receive</text>
+<text x="446" y="270" class="pin" text-anchor="start">4</text>
+<text x="446" y="330" class="pin" text-anchor="start">3</text>
+<text x="524" y="270" class="pin" text-anchor="end">1</text>
+<text x="524" y="330" class="pin" text-anchor="end">2</text>
+<g transform="translate(970,0) scale(-1,1)">
+<rect x="440" y="430" width="90" height="110" rx="8" fill="#f4f6f8" stroke="#2b2f33" stroke-width="2"/>
+<polyline class="s" points="440,455 465,455 465,477"/>
+<polyline class="s" points="465,493 465,515 440,515"/>
+<path d="M454,477 L476,477 L465,493 Z" fill="#2b2f33"/>
+<polyline class="s" points="454,493 476,493"/>
+<polyline class="s" points="480,478 494,482"/>
+<path d="M494,482 l-7,-5 l-1,6 Z" fill="#2b2f33"/>
+<polyline class="s" points="480,490 494,494"/>
+<path d="M494,494 l-7,-5 l-1,6 Z" fill="#2b2f33"/>
+<polyline class="s" points="502,468 502,502"/>
+<polyline class="s" points="502,478 516,466 516,455 530,455"/>
+<polyline class="s" points="502,492 516,504 516,515 530,515"/>
+<path d="M516,504 l-9,-2 l4,-5 Z" fill="#2b2f33"/>
+</g>
+<text x="485" y="420" class="tb" text-anchor="middle">U3 · PC817</text>
+<text x="485" y="558" class="ts" text-anchor="middle">RX enable (no echo)</text>
+<text x="446" y="450" class="pin" text-anchor="start">4</text>
+<text x="446" y="510" class="pin" text-anchor="start">3</text>
+<text x="524" y="450" class="pin" text-anchor="end">1</text>
+<text x="524" y="510" class="pin" text-anchor="end">2</text>
+<polyline class="p" points="300,95 300,81"/>
+<path d="M291,81 L309,81 L300,69 Z" fill="#d9480f"/>
+<text x="300" y="63" class="tb" text-anchor="middle">+3V3</text>
+<polyline class="p" points="300,95 440,95"/>
+<rect x="340.0" y="87" width="40" height="16" rx="2" fill="#fff" stroke="#2b2f33" stroke-width="2"/>
+<text x="360.0" y="81" class="ts" text-anchor="middle">R1 470 Ω</text>
+<polyline class="w" points="240,155 440,155"/>
+<polyline class="d" points="530,95 740,95"/>
+<polyline class="w" points="530,155 590,155"/>
+<polyline class="w" points="590,155 590,171"/>
+<polyline class="w" points="578,171 602,171"/>
+<polyline class="w" points="582,176 598,176"/>
+<polyline class="w" points="586,181 594,181"/>
+<polyline class="w" points="240,275 440,275"/>
+<polyline class="w" points="440,335 400,335 400,455 440,455"/>
+<polyline class="p" points="670,275 670,261"/>
+<path d="M661,261 L679,261 L670,249 Z" fill="#d9480f"/>
+<text x="670" y="243" class="tb" text-anchor="middle">+5V</text>
+<polyline class="p" points="530,275 670,275"/>
+<rect x="580.0" y="267" width="40" height="16" rx="2" fill="#fff" stroke="#2b2f33" stroke-width="2"/>
+<text x="600.0" y="261" class="ts" text-anchor="middle">R2 1 kΩ</text>
+<polyline class="d" points="530,335 740,335"/>
+<polyline class="w" points="440,515 400,515"/>
+<polyline class="w" points="400,515 400,531"/>
+<polyline class="w" points="388,531 412,531"/>
+<polyline class="w" points="392,536 408,536"/>
+<polyline class="w" points="396,541 404,541"/>
+<polyline class="w" points="240,606 640,606 640,455 530,455"/>
+<rect x="570.0" y="447" width="40" height="16" rx="2" fill="#fff" stroke="#2b2f33" stroke-width="2"/>
+<text x="590.0" y="441" class="ts" text-anchor="middle">R3 470 Ω</text>
+<polyline class="w" points="530,515 590,515 590,578 240,578"/>
+<polyline class="d" points="740,95 740,335"/>
+<circle class="dot" cx="740" cy="200" r="4"/>
+<polyline class="d" points="740,200 810,200"/>
+<text x="748" y="88" class="tb" text-anchor="start">DATA</text>
+<rect x="810" y="160" width="160" height="200" rx="10" fill="#f4f6f8" stroke="#2b2f33" stroke-width="2"/>
+<text x="890" y="150" class="tb" text-anchor="middle">DB9 on the stove</text>
+<circle cx="832" cy="200" r="11" fill="#fff" stroke="#1e6fe0" stroke-width="2.5"/>
+<text x="832" y="205" class="tb" text-anchor="middle">8</text>
+<text x="852" y="200" style="font-size:14px;font-weight:700;fill:#1e6fe0">DATA</text>
+<text x="852" y="216" style="font-size:11px;fill:#5f6670">≈5 V idle</text>
+<circle cx="832" cy="260" r="11" fill="#fff" stroke="#2b2f33" stroke-width="2.5"/>
+<text x="832" y="265" class="tb" text-anchor="middle">7</text>
+<text x="852" y="260" style="font-size:14px;font-weight:700;fill:#2b2f33">GND</text>
+<text x="852" y="276" style="font-size:11px;fill:#5f6670">board ground</text>
+<circle cx="832" cy="320" r="11" fill="#fff" stroke="#e03131" stroke-width="2.5"/>
+<text x="832" y="325" class="tb" text-anchor="middle">3</text>
+<text x="852" y="320" style="font-size:14px;font-weight:700;fill:#e03131">+17 V</text>
+<text x="852" y="336" style="font-size:11px;fill:#e03131">DO NOT CONNECT</text>
+<polyline class="w" points="810,260 780,260"/>
+<polyline class="w" points="780,260 780,276"/>
+<polyline class="w" points="768,276 792,276"/>
+<polyline class="w" points="772,281 788,281"/>
+<polyline class="w" points="776,286 784,286"/>
+<line x1="790" y1="310" x2="806" y2="330" stroke="#e03131" stroke-width="2.5"/><line x1="806" y1="310" x2="790" y2="330" stroke="#e03131" stroke-width="2.5"/>
+<path d="M818,425 L962,425 L950,485 L830,485 Z" fill="#e9ecef" stroke="#2b2f33" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="838" cy="443" r="8" fill="#fff" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="838" y="447" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#2b2f33">1</text>
+<circle cx="864" cy="443" r="8" fill="#fff" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="864" y="447" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#2b2f33">2</text>
+<circle cx="890" cy="443" r="8" fill="#e03131" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="890" y="447" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#fff">3</text>
+<circle cx="916" cy="443" r="8" fill="#fff" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="916" y="447" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#2b2f33">4</text>
+<circle cx="942" cy="443" r="8" fill="#fff" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="942" y="447" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#2b2f33">5</text>
+<circle cx="851" cy="469" r="8" fill="#fff" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="851" y="473" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#2b2f33">6</text>
+<circle cx="877" cy="469" r="8" fill="#2b2f33" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="877" y="473" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#fff">7</text>
+<circle cx="903" cy="469" r="8" fill="#1e6fe0" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="903" y="473" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#fff">8</text>
+<circle cx="929" cy="469" r="8" fill="#fff" stroke="#2b2f33" stroke-width="1.5"/>
+<text x="929" y="473" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#2b2f33">9</text>
+<text x="890" y="507" class="ts" text-anchor="middle">pin numbers as printed on the</text>
+<text x="890" y="521" class="ts" text-anchor="middle">DB9 breakout — check yours!</text>
+<text x="270" y="640" class="ts" text-anchor="start">All ⏚ symbols are one net: ESP32 GND is tied to stove pin 7. The PC817s work as open-collector driver</text>
+<text x="270" y="658" class="ts" text-anchor="start">and 5 V → 3.3 V level shifter, not as galvanic isolation. GPIO16 uses the ESP32 internal pull-up (no 10 kΩ needed).</text>
+<text x="270" y="676" class="ts" text-anchor="start">Before wiring, measure your stove socket with a multimeter (stove plugged in): pin 8 ≈ 5 V, pin 3 ≈ 17 V vs pin 7.</text>
+</svg>
