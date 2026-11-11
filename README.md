@@ -64,6 +64,7 @@ The original remote now lives in a drawer. 🧦
 <sub>Screenshots rendered with fake data. The card UI is in French.</sub>
 
 - 🔌 **Local control**, no cloud, no vendor app: on/off, flame level P1–P5, live state (ignition, heating, cleaning, alarms…).
+- 📱 **From anywhere**: with remote access to Home Assistant (Home Assistant Cloud, a VPN or your own reverse proxy), light the stove on your way home when it's cold, and come back to a warm house.
 - 🌡️ **Real thermostat**: setpoint ±0.5 °C hysteresis, using any Home Assistant thermometer, with automatic fallback to the stove's own probe.
 - 🗓️ **Schedules**: "time slots + temperature", "time slots only" or "temperature only", editable from the card.
 - 🛡️ **Protections**: never restarts a stove that hasn't finished its cooling cycle, minimum 30 min off / 45 min on.

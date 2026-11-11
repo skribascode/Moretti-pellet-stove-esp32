@@ -64,6 +64,7 @@ La télécommande d'origine dort maintenant dans un tiroir. 🧦
 <sub>Captures générées avec des données fictives.</sub>
 
 - 🔌 **Contrôle local**, sans cloud ni appli constructeur : marche/arrêt, niveau de flamme P1 à P5, état en direct (allumage, chauffe, nettoyage, alarmes…).
+- 📱 **De partout** : avec l'accès à distance à Home Assistant (Home Assistant Cloud, un VPN ou ton propre reverse proxy), tu allumes le poêle sur le chemin du retour quand il fait froid, et tu rentres dans une maison déjà chaude.
 - 🌡️ **Vrai thermostat** : consigne avec hystérésis de ±0,5 °C, basée sur n'importe quel thermomètre de Home Assistant, avec repli automatique sur la sonde du poêle.
 - 🗓️ **Programmation** : « Horaire + température », « Horaire seul » ou « Température seule », plages modifiables depuis la carte.
 - 🛡️ **Protections** : ne relance jamais un poêle qui n'a pas fini son refroidissement, 30 min d'arrêt et 45 min de marche minimum.
