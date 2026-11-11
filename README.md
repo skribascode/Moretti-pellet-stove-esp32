@@ -111,18 +111,20 @@ The stove keeps doing what it does best (ignition, pellet feeding, cleaning cycl
 
 ## Bill of materials
 
+Links are plain product pages on amazon.fr (no affiliate tag), given as examples: any equivalent part works.
+
 | Part | Qty | Notes |
 |---|:---:|---|
 | ESP32 dev board, 30 pins, USB-C (WROOM-32, "HW-394" type) | 1 | any ESP32 DevKit works; the enclosure is sized for this one (~53 × 29.5 mm) |
-| PC817 optocoupler (DIP-4) | 3 | |
+| PC817 optocoupler (DIP-4) | 3 | [PC817C, pack of 100](https://www.amazon.fr/dp/B0F3D13MKL) |
 | Resistor 470 Ω | 2 | R1, R3 |
 | Resistor 1 kΩ | 1 | R2 |
-| DB9 **male** breakout with screw terminals | 1 | plugs straight into the stove socket |
+| DB9 **male** breakout with screw terminals | 1 | plugs straight into the stove socket · [DB9-F-8A breakout](https://www.amazon.fr/dp/B08LYR2KDD) |
 | Dupont jumpers (F-F and M-F) | ~15 | or solder everything on a perfboard |
 | 5 V USB-C power supply + cable | 1 | the ESP is **not** powered by the stove |
 | M3 × 10 countersunk self-tapping screws | 4 | enclosure lid |
 | PLA or PETG filament | < 100 g | |
-| *Optional:* BLE thermometer supported by Home Assistant | 1 | SwitchBot Meter, Xiaomi LYWSD03MMC, … |
+| *Optional:* BLE thermometer supported by Home Assistant | 1 | the one used here: [SwitchBot Meter, pack of 3](https://www.amazon.fr/dp/B0F8HG1CXV) · Xiaomi LYWSD03MMC also works |
 
 ## Wiring
 

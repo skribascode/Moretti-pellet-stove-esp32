@@ -111,18 +111,20 @@ Le poêle continue de faire ce qu'il sait faire (allumage, alimentation en granu
 
 ## Matériel
 
+Les liens sont de simples fiches produit amazon.fr (sans lien affilié), à titre d'exemple : n'importe quelle pièce équivalente convient.
+
 | Pièce | Qté | Remarques |
 |---|:---:|---|
 | Carte ESP32, 30 broches, USB-C (WROOM-32, type « HW-394 ») | 1 | n'importe quel ESP32 DevKit convient ; le boîtier est dimensionné pour celle-ci (~53 × 29,5 mm) |
-| Optocoupleur PC817 (DIP-4) | 3 | |
+| Optocoupleur PC817 (DIP-4) | 3 | [PC817C, lot de 100](https://www.amazon.fr/dp/B0F3D13MKL) |
 | Résistance 470 Ω | 2 | R1, R3 |
 | Résistance 1 kΩ | 1 | R2 |
-| Adaptateur DB9 **mâle** à bornier à vis | 1 | se branche directement sur la prise du poêle |
+| Adaptateur DB9 **mâle** à bornier à vis | 1 | se branche directement sur la prise du poêle · [adaptateur DB9-F-8A](https://www.amazon.fr/dp/B08LYR2KDD) |
 | Fils Dupont (F-F et M-F) | ~15 | ou tout souder sur plaque à trous |
 | Alimentation USB-C 5 V + câble | 1 | l'ESP n'est **pas** alimenté par le poêle |
 | Vis M3 × 10 tête fraisée autotaraudeuses | 4 | couvercle |
 | Filament PLA ou PETG | < 100 g | |
-| *Option :* thermomètre BLE reconnu par Home Assistant | 1 | SwitchBot Meter, Xiaomi LYWSD03MMC, … |
+| *Option :* thermomètre BLE reconnu par Home Assistant | 1 | celui utilisé ici : [SwitchBot Meter, lot de 3](https://www.amazon.fr/dp/B0F8HG1CXV) · un Xiaomi LYWSD03MMC marche aussi |
 
 ## Câblage
 
