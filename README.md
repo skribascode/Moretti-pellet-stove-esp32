@@ -14,6 +14,9 @@
 
 </div>
 
+> [!TIP]
+> The official Wi-Fi module costs [more than €230](https://www.lacentraledupoele.com/produit/17253-systeme-wifi-navel-micronova-moretti-design) (without installation) and relies on a proprietary app [rated 2.1/5](https://play.google.com/store/apps/details?id=com.micronovasrl.ninamoretti). This project does better, locally, for about €20 of parts.
+
 ---
 
 ## Table of contents
