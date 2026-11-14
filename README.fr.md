@@ -229,7 +229,7 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 
 - **Température des fumées** lue en `0x00:0x58` sur ce poêle (vérifié à chaud et à froid). Ton modèle peut différer.
 - **Interrogations volontairement espacées** (60 à 300 s) : si la télécommande d'origine sert encore, chaque trame risque une collision.
-- **Relais Bluetooth** : facultatif ; il impose de retirer `power_save_mode: none` (Wi-Fi et BLE partagent la radio). Garde le scan **passif** : en scan actif, l'ESP décrochait du Wi-Fi toutes les quelques heures.
+- **Relais Bluetooth** : facultatif ; il impose de retirer `power_save_mode: none` (Wi-Fi et BLE partagent la radio). Garde le scan **passif**, `bluetooth_proxy: active: false` et le journal en `INFO` : avec le scan actif et les connexions BLE activées, l'ESP décrochait d'Home Assistant toutes les quelques minutes.
 
 ## Home Assistant : thermostat et programmation
 

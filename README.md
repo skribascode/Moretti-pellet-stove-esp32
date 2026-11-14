@@ -229,7 +229,7 @@ Notes on the config:
 
 - **Fumes temperature** is read at `0x00:0x58` on this stove (checked hot and cold). Your model may differ.
 - **Polling is slow on purpose** (60–300 s): if the original remote is still used, each frame can collide with it.
-- **Bluetooth proxy**: optional; it requires dropping `power_save_mode: none` (Wi-Fi and BLE share the radio). Keep the scan **passive**: active scanning made the ESP drop off Wi-Fi every few hours.
+- **Bluetooth proxy**: optional; it requires dropping `power_save_mode: none` (Wi-Fi and BLE share the radio). Keep the scan **passive**, `bluetooth_proxy: active: false` and the logger at `INFO`: with active scanning and connection slots enabled, the ESP dropped off Home Assistant every few minutes.
 
 ## Home Assistant: thermostat & schedule
 
