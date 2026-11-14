@@ -241,7 +241,7 @@ Notes on the config:
 | `input_number.poele_consigne` | setpoint, 15–25 °C, 0.5 steps |
 | `input_select.poele_mode_programmation` | `Horaire + température` / `Horaire seul` / `Température seule` |
 | `schedule.poele_plages_horaires` | weekly time slots (the file ships example slots) |
-| `input_datetime.poele_dernier_changement_marche_arret` + `automation.poele_memo_bascule` | time of the last real on/off change, immune to ESP disconnections |
+| `input_datetime.poele_dernier_changement_marche_arret` + `input_boolean.poele_marche_memorisee` + `automation.poele_memo_bascule` | time of the last real on/off change, immune to ESP disconnections |
 | `automation.poele_programmation` | the logic below |
 
 **Install:** enable packages in `configuration.yaml`, copy the file, then replace `sensor.room_temperature` with your thermometer:

@@ -241,7 +241,7 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 | `input_number.poele_consigne` | consigne, 15 à 25 °C, pas de 0,5 |
 | `input_select.poele_mode_programmation` | `Horaire + température` / `Horaire seul` / `Température seule` |
 | `schedule.poele_plages_horaires` | plages hebdomadaires (le fichier contient des plages d'exemple) |
-| `input_datetime.poele_dernier_changement_marche_arret` + `automation.poele_memo_bascule` | heure du dernier vrai passage marche/arrêt, insensible aux déconnexions de l'ESP |
+| `input_datetime.poele_dernier_changement_marche_arret` + `input_boolean.poele_marche_memorisee` + `automation.poele_memo_bascule` | heure du dernier vrai passage marche/arrêt, insensible aux déconnexions de l'ESP |
 | `automation.poele_programmation` | la logique ci-dessous |
 
 **Installation :** active les packages dans `configuration.yaml`, copie le fichier, puis remplace `sensor.room_temperature` par ton thermomètre :

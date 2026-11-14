@@ -14,6 +14,10 @@ input_boolean:
   poele_programmation:
     name: Poêle - programmation
     icon: mdi:calendar-clock
+  # Last known on/off state of the stove, used by poele_memo_bascule
+  poele_marche_memorisee:
+    name: Poêle - marche mémorisée
+    icon: mdi:fire
 
 input_number:
   poele_consigne:
@@ -67,23 +71,28 @@ schedule:
 automation:
   - id: poele_memo_bascule
     alias: Poêle - mémoriser marche/arrêt
-    description: Records the time of real off/on changes (ignores ESP disconnections).
+    description: >-
+      Records the time of real off/on changes. Compares with the last known state,
+      so ESP disconnections are ignored, even when the stove changed state during one.
     mode: queued
     triggers:
       - trigger: state
         entity_id: switch.poele_poele
-        from: "off"
-        to: "on"
-      - trigger: state
-        entity_id: switch.poele_poele
-        from: "on"
-        to: "off"
+        to: ["on", "off"]
+    conditions:
+      # Only a real change versus the last known state (unavailable -> same state is ignored)
+      - condition: template
+        value_template: >-
+          {{ (trigger.to_state.state == 'on') != is_state('input_boolean.poele_marche_memorisee', 'on') }}
     actions:
       - action: input_datetime.set_datetime
         target:
           entity_id: input_datetime.poele_dernier_changement_marche_arret
         data:
           timestamp: "{{ as_timestamp(now()) }}"
+      - action: "input_boolean.turn_{{ trigger.to_state.state }}"
+        target:
+          entity_id: input_boolean.poele_marche_memorisee
 
   - id: poele_programmation
     alias: Poêle - programmation
