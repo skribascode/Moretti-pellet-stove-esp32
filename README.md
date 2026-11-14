@@ -229,7 +229,7 @@ Notes on the config:
 
 - **Fumes temperature** is read at `0x00:0x58` on this stove (checked hot and cold). Your model may differ.
 - **Polling is slow on purpose** (60–300 s): if the original remote is still used, each frame can collide with it.
-- **Bluetooth proxy**: optional; it requires dropping `power_save_mode: none` (Wi-Fi and BLE share the radio).
+- **Bluetooth proxy**: optional; it requires dropping `power_save_mode: none` (Wi-Fi and BLE share the radio). Keep the scan **passive**: active scanning made the ESP drop off Wi-Fi every few hours.
 
 ## Home Assistant: thermostat & schedule
 
@@ -241,6 +241,7 @@ Notes on the config:
 | `input_number.poele_consigne` | setpoint, 15–25 °C, 0.5 steps |
 | `input_select.poele_mode_programmation` | `Horaire + température` / `Horaire seul` / `Température seule` |
 | `schedule.poele_plages_horaires` | weekly time slots (the file ships example slots) |
+| `input_datetime.poele_dernier_changement_marche_arret` + `automation.poele_memo_bascule` | time of the last real on/off change, immune to ESP disconnections |
 | `automation.poele_programmation` | the logic below |
 
 **Install:** enable packages in `configuration.yaml`, copy the file, then replace `sensor.room_temperature` with your thermometer:
@@ -343,6 +344,12 @@ On this stove, RAM `0x01` (room temperature) comes from the remote's probe. Remo
 <summary><b>Keeping or retiring the original remote</b></summary>
 
 The remote talks on the same bus. Both can coexist (hence the slow polling), but collisions happen. With an external thermometer, Home Assistant does everything the remote did, better: removing its batteries made the bus noticeably more reliable.
+</details>
+
+<details>
+<summary><b>The stove keeps heating after the time slot / setpoint</b></summary>
+
+Seen in real life: the ESP dropped off Home Assistant for a few minutes several times, and each time it came back the switch went `unavailable → on`. An automation measuring "running for 45 min" from the switch's `last_changed` restarts from zero at every reconnection, so it never turns the stove off. The package therefore stores the time of real on/off changes in `input_datetime.poele_dernier_changement_marche_arret`. If the ESP drops often, also check the Bluetooth scan is passive (see below) and the Wi-Fi signal (better than −75 dBm).
 </details>
 
 <details>

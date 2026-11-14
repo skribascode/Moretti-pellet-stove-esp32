@@ -229,7 +229,7 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 
 - **Température des fumées** lue en `0x00:0x58` sur ce poêle (vérifié à chaud et à froid). Ton modèle peut différer.
 - **Interrogations volontairement espacées** (60 à 300 s) : si la télécommande d'origine sert encore, chaque trame risque une collision.
-- **Relais Bluetooth** : facultatif ; il impose de retirer `power_save_mode: none` (Wi-Fi et BLE partagent la radio).
+- **Relais Bluetooth** : facultatif ; il impose de retirer `power_save_mode: none` (Wi-Fi et BLE partagent la radio). Garde le scan **passif** : en scan actif, l'ESP décrochait du Wi-Fi toutes les quelques heures.
 
 ## Home Assistant : thermostat et programmation
 
@@ -241,6 +241,7 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 | `input_number.poele_consigne` | consigne, 15 à 25 °C, pas de 0,5 |
 | `input_select.poele_mode_programmation` | `Horaire + température` / `Horaire seul` / `Température seule` |
 | `schedule.poele_plages_horaires` | plages hebdomadaires (le fichier contient des plages d'exemple) |
+| `input_datetime.poele_dernier_changement_marche_arret` + `automation.poele_memo_bascule` | heure du dernier vrai passage marche/arrêt, insensible aux déconnexions de l'ESP |
 | `automation.poele_programmation` | la logique ci-dessous |
 
 **Installation :** active les packages dans `configuration.yaml`, copie le fichier, puis remplace `sensor.room_temperature` par ton thermomètre :
@@ -343,6 +344,12 @@ Sur ce poêle, la RAM `0x01` (température ambiante) vient de la sonde de la té
 <summary><b>Garder ou retirer la télécommande d'origine</b></summary>
 
 La télécommande parle sur le même bus. Les deux peuvent cohabiter (d'où les interrogations espacées), mais les collisions arrivent. Avec un thermomètre externe, Home Assistant fait tout ce que faisait la télécommande, en mieux : lui retirer ses piles a nettement fiabilisé le bus.
+</details>
+
+<details>
+<summary><b>Le poêle continue de chauffer après la plage ou la consigne</b></summary>
+
+Vécu : l'ESP a décroché d'Home Assistant quelques minutes à plusieurs reprises, et à chaque retour l'interrupteur passait de `unavailable` à `on`. Une automatisation qui mesure « allumé depuis 45 min » avec le `last_changed` de l'interrupteur repart de zéro à chaque reconnexion, et n'éteint donc jamais le poêle. Le package mémorise donc l'heure des vrais passages marche/arrêt dans `input_datetime.poele_dernier_changement_marche_arret`. Si l'ESP décroche souvent, vérifie aussi que le scan Bluetooth est passif (voir ci-dessous) et le signal Wi-Fi (mieux que −75 dBm).
 </details>
 
 <details>

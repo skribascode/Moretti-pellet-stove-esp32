@@ -34,6 +34,17 @@ input_select:
       - "Température seule"       # plain thermostat, ignore time slots
     icon: mdi:tune-variant
 
+# Time of the last REAL off->on / on->off change of the stove. Kept by the
+# poele_memo_bascule automation below. The switch's own last_changed can't be used:
+# it is reset every time the ESP reconnects (unavailable -> on), which would restart
+# the 30/45 min timers again and again and keep the stove running.
+input_datetime:
+  poele_dernier_changement_marche_arret:
+    name: Poêle - dernier changement marche/arrêt
+    has_date: true
+    has_time: true
+    icon: mdi:timer-sync-outline
+
 # Example slots only: change them to fit your life (UI editing is easier).
 schedule:
   poele_plages_horaires:
@@ -54,6 +65,26 @@ schedule:
     sunday: *weekend
 
 automation:
+  - id: poele_memo_bascule
+    alias: Poêle - mémoriser marche/arrêt
+    description: Records the time of real off/on changes (ignores ESP disconnections).
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: switch.poele_poele
+        from: "off"
+        to: "on"
+      - trigger: state
+        entity_id: switch.poele_poele
+        from: "on"
+        to: "off"
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.poele_dernier_changement_marche_arret
+        data:
+          timestamp: "{{ as_timestamp(now()) }}"
+
   - id: poele_programmation
     alias: Poêle - programmation
     description: >-
@@ -88,8 +119,9 @@ automation:
       allume: "{{ is_state('switch.poele_poele', 'on') }}"
       etat: "{{ states('sensor.poele_etat') }}"
       plage: "{{ is_state('schedule.poele_plages_horaires', 'on') }}"
+      # Minutes since the last real on/off change (see input_datetime above)
       depuis_min: >-
-        {{ ((now() - states.switch.poele_poele.last_changed).total_seconds() / 60) | round(0) }}
+        {{ ((as_timestamp(now()) - (state_attr('input_datetime.poele_dernier_changement_marche_arret', 'timestamp') | float(0))) / 60) | int }}
       # Hysteresis: keep heating up to setpoint +0.5, restart below setpoint -0.5
       temp_ok: "{{ (t < c + 0.5) if allume else (t < c - 0.5) }}"
       voulu: >-
