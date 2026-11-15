@@ -18,6 +18,17 @@ input_boolean:
   poele_marche_memorisee:
     name: Poêle - marche mémorisée
     icon: mdi:fire
+  # Set by the poele_alarme automation; blocks the schedule until the stove is re-armed
+  poele_alarme_a_traiter:
+    name: Poêle - alarme à traiter
+    icon: mdi:alert-octagon
+
+input_text:
+  # "<alarm> — <what to do>", shown by the card
+  poele_cause_alarme:
+    name: Poêle - cause alarme
+    max: 255
+    icon: mdi:alert-circle-outline
 
 input_number:
   poele_consigne:
@@ -113,6 +124,11 @@ automation:
       - condition: state
         entity_id: input_boolean.poele_programmation
         state: "on"
+      # Never touch a stove in alarm: switching it off would clear the alarm,
+      # and the next time slot would reload pellets on top of the unburnt ones.
+      - condition: state
+        entity_id: input_boolean.poele_alarme_a_traiter
+        state: "off"
       # Do nothing while the ESP is offline
       - condition: template
         value_template: "{{ states('switch.poele_poele') in ['on', 'off'] }}"
@@ -154,3 +170,57 @@ automation:
               - action: switch.turn_off
                 target:
                   entity_id: switch.poele_poele
+
+  - id: poele_alarme
+    alias: Poêle - alarme
+    description: >-
+      Locks the schedule and notifies when the stove goes into alarm.
+      Unlocked manually with the "Poêle - réarmer" script (button on the card).
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: sensor.poele_etat
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.to_state.state.startswith('Alarme') }}"
+    variables:
+      conseil: >-
+        {% set e = trigger.to_state.state %}{% if 'granulés' in e %}Réservoir vide : recharge les granulés, vide le brasier (granulés non brûlés), puis réarme le poêle.{% elif 'allumage' in e %}Le feu n'a pas pris : vérifie le réservoir, vide le brasier avant toute relance, puis réarme. Si ça se répète réservoir plein : bougie d'allumage ou brasier encrassé.{% else %}Alarme du poêle : regarde le code sur l'afficheur du poêle, vide le brasier, puis réarme.{% endif %}
+    actions:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.poele_alarme_a_traiter
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.poele_cause_alarme
+        data:
+          value: "{{ (trigger.to_state.state ~ ' — ' ~ conseil)[:255] }}"
+      - action: persistent_notification.create
+        data:
+          notification_id: poele_alarme
+          title: "🔥 Poêle : {{ trigger.to_state.state }}"
+          message: "{{ conseil }}\n\nLa programmation est suspendue tant que le poêle n'est pas réarmé."
+
+script:
+  poele_rearmer:
+    alias: Poêle - réarmer
+    description: >-
+      Run once the problem is fixed and the brazier emptied: clears the stove alarm
+      and resumes the schedule.
+    icon: mdi:restart-alert
+    mode: single
+    sequence:
+      - action: switch.turn_off   # on a Micronova board, "off" clears the alarm
+        target:
+          entity_id: switch.poele_poele
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.poele_alarme_a_traiter
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.poele_cause_alarme
+        data:
+          value: ""
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: poele_alarme

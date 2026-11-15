@@ -71,7 +71,7 @@ The original remote now lives in a drawer. 🧦
 - 🌡️ **Real thermostat**: setpoint ±0.5 °C hysteresis, using any Home Assistant thermometer, with automatic fallback to the stove's own probe.
 - 🗓️ **Schedules**: "time slots + temperature", "time slots only" or "temperature only", editable from the card.
 - 🛡️ **Protections**: never restarts a stove that hasn't finished its cooling cycle, minimum 30 min off / 45 min on.
-- 📶 **Bluetooth proxy**: the stove ESP also relays BLE sensors to Home Assistant (handy for the room thermometer).
+- 🚨 **Alarm handling**: when the stove reports an alarm (no pellets, ignition failure…), the card shows the cause and what to do in plain words, Home Assistant notifies you, and the schedule is locked until you re-arm, so it never reloads pellets on top of unburnt ones.
 - 🎨 **Animated card**: flame, glow and smoke follow the real stove state; offline state; pending-command feedback.
 - 🖨️ **3D-printed enclosure** with the DB9 connector built into the wall.
 
@@ -95,8 +95,8 @@ flowchart LR
 
     MB <-- "DB9 · single wire<br/>1200 baud 8N2" --> IF
     IF <--> ESP
-    T -. "BLE adverts" .-> ESP
-    ESP <-- "Wi-Fi · native API<br/>+ Bluetooth proxy" --> API
+    T -. "BLE (HA host Bluetooth<br/>or a separate proxy)" .-> API
+    ESP <-- "Wi-Fi · native API" --> API
     API --> PKG
     PKG -- "switch.turn_on / off" --> API
     API --> CARD
@@ -229,7 +229,8 @@ Notes on the config:
 
 - **Fumes temperature** is read at `0x00:0x58` on this stove (checked hot and cold). Your model may differ.
 - **Polling is slow on purpose** (60–300 s): if the original remote is still used, each frame can collide with it.
-- **Bluetooth proxy**: optional; it requires dropping `power_save_mode: none` (Wi-Fi and BLE share the radio). Keep the scan **passive**, `bluetooth_proxy: active: false` and the logger at `INFO`: with active scanning and connection slots enabled, the ESP dropped off Home Assistant every few minutes.
+- **No Bluetooth proxy on this ESP**: tried, and even with a passive scan and no BLE connections the ESP kept dropping off Home Assistant (before it, the ESP ran for days without a drop). Without it, Wi-Fi power saving is off and OTA updates take 17 s instead of 5 min. Use a separate ESP32 as proxy if needed.
+- **Diagnostics**: free memory, loop time and the cause of the last reboot (power loss, crash, watchdog…) are exposed as sensors.
 
 ## Home Assistant: thermostat & schedule
 
@@ -243,6 +244,8 @@ Notes on the config:
 | `schedule.poele_plages_horaires` | weekly time slots (the file ships example slots) |
 | `input_datetime.poele_dernier_changement_marche_arret` + `input_boolean.poele_marche_memorisee` + `automation.poele_memo_bascule` | time of the last real on/off change, immune to ESP disconnections |
 | `automation.poele_programmation` | the logic below |
+| `automation.poele_alarme` + `input_boolean.poele_alarme_a_traiter` + `input_text.poele_cause_alarme` | alarm lock: cause + advice, notification, schedule suspended |
+| `script.poele_rearmer` | re-arm after an alarm: clears it on the stove and unlocks the schedule |
 
 **Install:** enable packages in `configuration.yaml`, copy the file, then replace `sensor.room_temperature` with your thermometer:
 
@@ -303,16 +306,21 @@ In a *sections* dashboard, give its section the full width (the card asks for it
 | `fumes` | `sensor.poele_temperature_fumees` |
 | `prog` / `mode` / `schedule` / `automation` | the package helpers |
 | `wifi` / `ip` / `uptime` / `version` | ESP diagnostics |
+| `alarm_lock` / `alarm_cause` / `rearm` | the package's alarm helpers and re-arm script |
 
 What it shows: the stove illustration (flame, glow and smoke follow the actual state, grey when off), the current room temperature, a dial for the setpoint, on/off with confirmation, flame level P1–P5, today's time slots with the next change and an in-place editor, a 24 h graph (room temperature, setpoint, running periods), ignitions and heating time over 24 h, fumes temperature, and a collapsible diagnostics panel. When the ESP is offline, controls are disabled and a notification explains why a command failed.
 
+**In alarm**, a red box gives the cause and what to do, with a *re-arm* button (two taps) once the brazier is emptied:
+
+<p align="center"><img src="docs/img/card_alarm.png" width="700" alt="Card showing a no-pellets alarm with advice and a re-arm button"></p>
+
 ## Room thermometer (Bluetooth)
 
-Any temperature entity works. A cheap BLE thermometer is perfect, and the stove ESP is already a **Bluetooth proxy**, so it relays the sensor even when your Home Assistant host is far away.
+Any temperature entity works. A cheap BLE thermometer is perfect, received by your Home Assistant host's Bluetooth, or by a **separate** ESP32 Bluetooth proxy if the host is too far (not the stove ESP, see troubleshooting).
 
 - SwitchBot Meter / Outdoor Meter: the built-in **SwitchBot Bluetooth** integration reads it locally. **No SwitchBot account, no hub, no cloud.**
 - Place it in the room, at body height, away from the stove's radiation and from windows.
-- A pellet stove is a big steel box: it blocks 2.4 GHz. If the signal is weak (around −90 dBm), give the thermometer line of sight to the ESP.
+- A pellet stove is a big steel box: it blocks 2.4 GHz. Don't hide the thermometer behind it.
 
 ## Troubleshooting & lessons learned
 
@@ -349,13 +357,19 @@ The remote talks on the same bus. Both can coexist (hence the slow polling), but
 <details>
 <summary><b>The stove keeps heating after the time slot / setpoint</b></summary>
 
-Seen in real life: the ESP dropped off Home Assistant for a few minutes several times, and each time it came back the switch went `unavailable → on`. An automation measuring "running for 45 min" from the switch's `last_changed` restarts from zero at every reconnection, so it never turns the stove off. The package therefore stores the time of real on/off changes in `input_datetime.poele_dernier_changement_marche_arret`. If the ESP drops often, also check the Bluetooth scan is passive (see below) and the Wi-Fi signal (better than −75 dBm).
+Seen in real life: the ESP dropped off Home Assistant for a few minutes several times, and each time it came back the switch went `unavailable → on`. An automation measuring "running for 45 min" from the switch's `last_changed` restarts from zero at every reconnection, so it never turns the stove off. The package therefore stores the time of real on/off changes in `input_datetime.poele_dernier_changement_marche_arret`. If the ESP drops often, keep Bluetooth off it (see below) and check the Wi-Fi signal (better than −75 dBm).
 </details>
 
 <details>
-<summary><b>ESPHome refuses to compile with bluetooth_proxy</b></summary>
+<summary><b>Why not make the stove ESP a Bluetooth proxy?</b></summary>
 
-Remove `power_save_mode: none` from the `wifi:` block. Wi-Fi and BLE coexistence needs the default power-save mode.
+It was tried for a few days to receive the room thermometer. Wi-Fi + BLE + the slow 1200-baud Micronova bus on one ESP32 gave Home Assistant disconnections every few minutes, even with a passive scan, no BLE connections and less logging, whereas the same ESP had run for days without a drop before. Not worth it. If your thermometer is out of range of the Home Assistant host, use a second, dedicated ESP32 as Bluetooth proxy.
+</details>
+
+<details>
+<summary><b>The stove went into alarm (no pellets, ignition failure)</b></summary>
+
+Real case: empty tank, "no pellets" then "ignition failure". The first version of the automation switched the stove off at the end of the time slot, which **clears the alarm** on a Micronova board, then started it again at the next slot: a second load of pellets on top of the unburnt one. Now the `poele_alarme` automation locks the schedule. Refill, **empty the brazier**, then press *re-arm* on the card (or run `script.poele_rearmer`).
 </details>
 
 <details>
@@ -369,10 +383,10 @@ If you screw the breakout's hex standoffs through the wall from outside, nothing
 ```
 .
 ├── esphome/
-│   ├── pellet-stove.yaml          ESPHome config (micronova + BLE proxy)
+│   ├── pellet-stove.yaml          ESPHome config (micronova + diagnostics)
 │   └── secrets.example.yaml
 ├── homeassistant/packages/
-│   └── pellet_stove.yaml          helpers + schedule + thermostat automation
+│   └── pellet_stove.yaml          helpers + schedule + thermostat + alarm lock
 ├── lovelace/
 │   └── poele-card.js              custom dashboard card
 ├── hardware/enclosure/

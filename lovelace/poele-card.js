@@ -3,7 +3,7 @@
  * No dependency. Copy to /config/www/poele-card.js, add resource /local/poele-card.js (JavaScript module).
  * UI text is in French.
  */
-const PC_VERSION = "1.4.0";
+const PC_VERSION = "1.5.0";
 
 const DEFAULTS = {
   title: "Poêle",
@@ -23,6 +23,9 @@ const DEFAULTS = {
   ip: "sensor.poele_adresse_ip",
   uptime: "sensor.poele_dernier_redemarrage_esp",
   version: "sensor.poele_version_esphome",
+  alarm_lock: "input_boolean.poele_alarme_a_traiter", // verrou posé par l'automatisation « Poêle - alarme »
+  alarm_cause: "input_text.poele_cause_alarme",
+  rearm: "script.poele_rearmer",
 };
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -345,6 +348,7 @@ class PoeleCard extends HTMLElement {
         </div>
         ${mode ? `<button class="chip" data-action="more" data-e="${this._cfg.mode}"><ha-icon icon="mdi:calendar-clock"></ha-icon>${esc(mode.state)}</button>` : ""}
       </div>
+      ${this._alarmBox(ph, st)}
       <div class="hero">
         <div class="stovewrap">
           ${this._stoveSvg(ph, power ?? level)}
@@ -369,6 +373,35 @@ class PoeleCard extends HTMLElement {
           <div class="lbl"><ha-icon icon="mdi:fire-circle"></ha-icon> Niveau de flamme</div>
           <div class="segs">${seg}</div>
         </div>
+      </div>`;
+  }
+
+  _alarmAdvice(state) {
+    const s = (state || "").toLowerCase();
+    if (s.includes("granul")) return "Réservoir vide : recharge les granulés, vide le brasier (granulés non brûlés), puis réarme le poêle.";
+    if (s.includes("allumage")) return "Le feu n'a pas pris : vérifie le réservoir, vide le brasier avant toute relance, puis réarme. Si ça se répète réservoir plein : bougie d'allumage ou brasier encrassé.";
+    return "Regarde le code affiché sur le poêle, vide le brasier, puis réarme.";
+  }
+  _alarmBox(ph, st) {
+    const lock = this._s("alarm_lock");
+    const locked = lock && lock.state === "on";
+    if (!locked && ph.key !== "alarm") return "";
+    const causeEnt = this._s("alarm_cause");
+    let title = ph.key === "alarm" ? ph.label : "Alarme à traiter";
+    let advice = this._alarmAdvice(ph.key === "alarm" ? st.state : "");
+    if (causeEnt && causeEnt.state && !["unknown", "unavailable", ""].includes(causeEnt.state)) {
+      const parts = causeEnt.state.split(" — ");
+      title = parts[0];
+      if (parts[1]) advice = parts.slice(1).join(" — ");
+    }
+    const confirming = Date.now() < (this._rearmUntil || 0);
+    return `<div class="alarmbox">
+        <div class="atitle"><ha-icon icon="mdi:alert-octagon"></ha-icon>${esc(title)}</div>
+        <div class="atext">${esc(advice)}</div>
+        ${locked ? `<div class="anote">Programmation suspendue tant que le poêle n'est pas réarmé.</div>` : ""}
+        <button class="rearm ${confirming ? "confirm" : ""}" data-action="rearm">
+          <ha-icon icon="mdi:restart-alert"></ha-icon>${confirming ? "Confirmer : brasier vidé, réarmer ?" : "Problème réglé, brasier vidé : réarmer"}
+        </button>
       </div>`;
   }
 
@@ -652,6 +685,18 @@ class PoeleCard extends HTMLElement {
     const a = btn.dataset.action;
     const c = this._cfg;
     switch (a) {
+      case "rearm": {
+        if (Date.now() < (this._rearmUntil || 0)) {
+          this._rearmUntil = 0;
+          if (this._s("rearm")) this._call("script", "turn_on", { entity_id: c.rearm });
+          else this._call("switch", "turn_off", { entity_id: c.switch });
+        } else {
+          this._rearmUntil = Date.now() + 5000;
+          setTimeout(() => this._renderTop(), 5100);
+        }
+        this._renderTop();
+        break;
+      }
       case "power": {
         const sw = this._s("switch");
         if (Date.now() < this._confirmUntil) {
@@ -877,6 +922,13 @@ PoeleCard.styles = `
   .btn.primary { background: var(--pc-accent); color: #fff; }
   .btn[disabled] { opacity: .6; }
   .big.offline { opacity: .55; cursor: not-allowed; border-style: dashed; }
+  .alarmbox { margin: 12px 0 4px; padding: 12px 14px; border-radius: 14px; background: rgba(229,72,77,.12); border: 1px solid rgba(229,72,77,.45); }
+  .alarmbox .atitle { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #e5484d; font-size: 15px; }
+  .alarmbox .atitle ha-icon { --mdc-icon-size: 20px; }
+  .alarmbox .atext { margin-top: 6px; font-size: 13.5px; line-height: 1.45; color: var(--primary-text-color); }
+  .alarmbox .anote { margin-top: 6px; font-size: 12px; color: var(--secondary-text-color); }
+  .alarmbox .rearm { margin-top: 10px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid #e5484d; background: transparent; color: #e5484d; font: inherit; font-weight: 600; cursor: pointer; }
+  .alarmbox .rearm.confirm { background: #e5484d; color: #fff; }
   .chart { width: 100%; height: auto; cursor: pointer; }
   .grid { stroke: var(--divider-color, rgba(127,127,127,.2)); stroke-dasharray: 3 4; }
   .axis { font-size: 12px; fill: var(--secondary-text-color); }

@@ -15,7 +15,6 @@ esp32:
   framework:
     type: esp-idf
 
-# INFO rather than DEBUG: at DEBUG the BLE tracker logs every advertisement
 logger:
   level: INFO
 
@@ -30,8 +29,9 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  # Do NOT set `power_save_mode: none` while bluetooth_proxy is enabled:
-  # Wi-Fi and BLE share the radio and ESPHome refuses that combination.
+  # No Bluetooth on this ESP (see README), so Wi-Fi power saving can be disabled:
+  # noticeably more stable link behind a metal stove.
+  power_save_mode: none
   ap:
     ssid: "Poele Fallback"
     password: !secret ap_password_poele
@@ -42,21 +42,13 @@ time:
   - platform: homeassistant
     id: ha_time
 
-# Optional: turn the stove ESP into a Home Assistant Bluetooth proxy.
-# Handy to receive a BLE thermometer placed in the stove room (SwitchBot, Xiaomi, ...).
-# Remove these two blocks if you don't need it.
-# Passive scan: active scanning (scan requests) hogs the radio shared with Wi-Fi and made
-# the ESP drop off Home Assistant every few hours. SwitchBot Meters work fine passively.
-# Set it back to true only if one of your BLE sensors needs active scanning.
-esp32_ble_tracker:
-  scan_parameters:
-    active: false
+# Do NOT make this ESP a Bluetooth proxy. Tested: Wi-Fi + BLE + the slow Micronova bus
+# on one ESP32 led to Home Assistant disconnections every few minutes and random reboots.
+# Use a separate ESP32 as Bluetooth proxy if your thermometer is out of range.
 
-# active: false = no BLE connections (thermometers only need advertisements).
-# Frees the RAM reserved for connection slots: with `active: true` the ESP kept
-# dropping off Home Assistant every few minutes.
-bluetooth_proxy:
-  active: false
+# Diagnostics: free memory, loop time, cause of the last reboot
+debug:
+  update_interval: 60s
 
 # ---------------------------------------------------------------- Micronova bus
 # Single-wire half-duplex bus, 1200 baud 8N2, isolated with 3 PC817 (see README).
@@ -107,6 +99,9 @@ text_sensor:
   - platform: version
     name: "Version ESPHome"
     hide_timestamp: true
+  - platform: debug
+    reset_reason:
+      name: "Cause du dernier redémarrage"
 
 sensor:
   - platform: micronova
@@ -127,6 +122,13 @@ sensor:
   - platform: uptime
     name: "Dernier redémarrage ESP"
     type: timestamp
+  - platform: debug
+    free:
+      name: "Mémoire libre"
+    block:
+      name: "Plus grand bloc mémoire"
+    loop_time:
+      name: "Durée de boucle"
 
 number:
   - platform: micronova
