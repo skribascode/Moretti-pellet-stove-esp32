@@ -68,7 +68,8 @@ La télécommande d'origine dort maintenant dans un tiroir. 🧦
 
 - 🔌 **Contrôle local**, sans cloud ni appli constructeur : marche/arrêt, niveau de flamme P1 à P5, état en direct (allumage, chauffe, nettoyage, alarmes…).
 - 📱 **De partout** : avec l'accès à distance à Home Assistant (Home Assistant Cloud, un VPN ou ton propre reverse proxy), tu allumes le poêle sur le chemin du retour quand il fait froid, et tu rentres dans une maison déjà chaude.
-- 🌡️ **Vrai thermostat** : consigne avec hystérésis de ±0,5 °C, basée sur n'importe quel thermomètre de Home Assistant, avec repli automatique sur la sonde du poêle.
+- 🧠 **Autonome** : la programmation et le thermostat tournent **dans l'ESP**. Si le Wi-Fi ou Home Assistant tombe, le poêle continue de suivre les derniers réglages reçus. Home Assistant sert de télécommande.
+- 🌡️ **Vrai thermostat** : consigne avec hystérésis de ±0,5 °C, basée sur ton thermomètre d'ambiance (via Home Assistant, ou lu directement par l'ESP en Bluetooth en secours).
 - 🗓️ **Programmation** : « Horaire + température », « Horaire seul » ou « Température seule », plages modifiables depuis la carte.
 - 🛡️ **Protections** : ne relance jamais un poêle qui n'a pas fini son refroidissement, 30 min d'arrêt et 45 min de marche minimum.
 - 🚨 **Gestion des alarmes** : quand le poêle signale une alarme (plus de granulés, échec d'allumage…), la carte affiche la cause et quoi faire en clair, Home Assistant te prévient, et la programmation est verrouillée jusqu'au réarmement : elle ne recharge jamais de granulés par-dessus ceux qui n'ont pas brûlé.
@@ -89,7 +90,7 @@ flowchart LR
     T["🌡️ Thermomètre BLE<br/>(pièce)"]
     subgraph HA["🏠 Home Assistant"]
         API["Intégration ESPHome"]
-        PKG["Package :<br/>entrées + automatisation"]
+        PKG["Package :<br/>entrées + synchro + alarme"]
         CARD["poele-card<br/>(Lovelace)"]
     end
 
@@ -98,7 +99,8 @@ flowchart LR
     T -. "BLE (Bluetooth du serveur HA<br/>ou relais séparé)" .-> API
     ESP <-- "Wi-Fi · API native" --> API
     API --> PKG
-    PKG -- "switch.turn_on / off" --> API
+    PKG -- "recopie des réglages<br/>(consigne, mode, plages)" --> API
+    T -. "BLE en secours" .-> ESP
     API --> CARD
     PKG --> CARD
 ```
@@ -111,7 +113,7 @@ La carte Micronova expose un **bus série half-duplex sur un seul fil** (5 V au 
 | poêle → ESP | lecture des réponses | la LED de U2 suit la ligne DATA, son transistor tire GPIO16 à la masse |
 | anti-écho | ignorer nos propres trames | GPIO4 pilote U3, en série avec U2 : la réception est coupée pendant l'émission |
 
-Le poêle continue de faire ce qu'il sait faire (allumage, alimentation en granulés, nettoyages, sécurités). Home Assistant décide seulement **quand** il doit tourner.
+Le poêle continue de faire ce qu'il sait faire (allumage, alimentation en granulés, nettoyages, sécurités). L'ESP décide seulement **quand** il doit tourner, d'après les réglages que lui donne Home Assistant.
 
 ## Matériel
 
@@ -229,7 +231,9 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 
 - **Température des fumées** lue en `0x00:0x58` sur ce poêle (vérifié à chaud et à froid). Ton modèle peut différer.
 - **Interrogations volontairement espacées** (60 à 300 s) : si la télécommande d'origine sert encore, chaque trame risque une collision.
-- **Pas de relais Bluetooth sur cet ESP** : essayé, et même en scan passif sans connexions BLE, l'ESP décrochait d'Home Assistant (avant, il tournait des jours sans une coupure). Sans lui, le Wi-Fi tourne sans économie d'énergie et une mise à jour prend 17 s au lieu de 5 min. Utilise un ESP32 séparé comme relais si besoin.
+- **Substitutions en tête de fichier** : l'entité de ton thermomètre dans Home Assistant, et en option l'adresse MAC d'un SwitchBot Meter que l'ESP lit directement en Bluetooth (scan passif léger, pas de relais).
+- **Pas de point d'accès de secours** : avec `ap:` + `captive_portal`, une coupure Wi-Fi faisait basculer l'ESP sur son propre point d'accès, et il ne cherchait presque plus à se reconnecter ; retiré.
+- **Nouvelles entités** : `text.poele_plages_<jour>`, `number.poele_consigne_esp`, `select.poele_mode_esp`, `switch.poele_programmation_esp` (remplies par le package), `sensor.poele_decision_programmation` (ce que l'ESP décide et pourquoi), `button.poele_rearmer`, `binary_sensor.poele_alarme_a_traiter_esp`.
 - **Diagnostic** : mémoire libre, durée de boucle et cause du dernier redémarrage (coupure, plantage, watchdog…) sont exposées en capteurs.
 
 ## Home Assistant : thermostat et programmation
@@ -238,29 +242,28 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 
 | Entrée | Rôle |
 |---|---|
-| `input_boolean.poele_programmation` | interrupteur général de l'automatisation |
+| `input_boolean.poele_programmation` | programmation activée ou non |
 | `input_number.poele_consigne` | consigne, 15 à 25 °C, pas de 0,5 |
 | `input_select.poele_mode_programmation` | `Horaire + température` / `Horaire seul` / `Température seule` |
 | `schedule.poele_plages_horaires` | plages hebdomadaires (le fichier contient des plages d'exemple) |
-| `input_datetime.poele_dernier_changement_marche_arret` + `input_boolean.poele_marche_memorisee` + `automation.poele_memo_bascule` | heure du dernier vrai passage marche/arrêt, insensible aux déconnexions de l'ESP |
-| `automation.poele_programmation` | la logique ci-dessous |
-| `automation.poele_alarme` + `input_boolean.poele_alarme_a_traiter` + `input_text.poele_cause_alarme` | verrou d'alarme : cause + conseil, notification, programmation suspendue |
+| `automation.poele_synchro_esp` | recopie tout ça dans l'ESP : à chaque changement, toutes les 15 min et quand l'ESP se reconnecte |
+| `automation.poele_alarme` + `input_boolean.poele_alarme_a_traiter` + `input_text.poele_cause_alarme` | alarme : cause + conseil, notification (l'ESP verrouille sa programmation tout seul) |
 | `script.poele_rearmer` | réarmement après une alarme : l'efface sur le poêle et déverrouille la programmation |
 
-**Installation :** active les packages dans `configuration.yaml`, copie le fichier, puis remplace `sensor.room_temperature` par ton thermomètre :
+**Installation :** active les packages dans `configuration.yaml` et copie le fichier :
 
 ```yaml
 homeassistant:
   packages: !include_dir_named packages
 ```
 
-**Logique de décision** (toutes les 5 min et à chaque changement d'une entrée) :
+**Logique de décision**, exécutée **dans l'ESP** toutes les minutes, avec ou sans Home Assistant :
 
 ```mermaid
 flowchart TD
-    A([Toutes les 5 min ou entrée modifiée]) --> B{Programmation activée<br/>et ESP en ligne ?}
+    A([Toutes les minutes, dans l'ESP]) --> B{Programmation activée<br/>et pas d'alarme ?}
     B -- non --> Z([ne rien faire])
-    B -- oui --> C["T = thermomètre de la pièce<br/>(secours : sonde du poêle)"]
+    B -- oui --> C["T = thermomètre de la pièce<br/>(BLE direct, sinon via HA,<br/>sinon aucune = horaire seul)"]
     C --> D{Mode}
     D -- "Horaire seul" --> E["voulu = dans une plage"]
     D -- "Température seule" --> F["voulu = T sous la consigne*"]
@@ -274,7 +277,7 @@ flowchart TD
     J -- non --> Z
 ```
 
-<sub>* hystérésis : en marche, on chauffe jusqu'à consigne + 0,5 °C ; à l'arrêt, on relance sous consigne − 0,5 °C. Une mesure ≤ 3 °C est considérée invalide ; le mode « Horaire + température » se replie alors sur l'horaire seul.</sub>
+<sub>* hystérésis : en marche, on chauffe jusqu'à consigne + 0,5 °C ; à l'arrêt, on relance sous consigne − 0,5 °C. Sans température valable (rien reçu, ou Home Assistant injoignable depuis plus de 30 min), le mode « Horaire + température » se replie sur l'horaire seul. Les minuteries marche/arrêt vivent dans l'ESP : une reconnexion ne peut pas les remettre à zéro.</sub>
 
 Entre ces décisions marche/arrêt, le poêle module lui-même sa puissance (niveau de flamme réglable depuis la carte).
 
@@ -307,6 +310,8 @@ Dans un tableau de bord en *sections*, donne toute la largeur à sa section (la 
 | `prog` / `mode` / `schedule` / `automation` | les entrées du package |
 | `wifi` / `ip` / `uptime` / `version` | diagnostic de l'ESP |
 | `alarm_lock` / `alarm_cause` / `rearm` | les entrées d'alarme et le script de réarmement du package |
+| `decision` | `sensor.poele_decision_programmation`, affichée dans le panneau de diagnostic |
+| `sync` | `automation.poele_synchro_esp`, déclenchée dès que tu enregistres les plages |
 
 Ce qu'elle affiche : l'illustration du poêle (flamme, lueur et fumée suivent l'état réel, grisée à l'arrêt), la température de la pièce, un cadran de consigne, marche/arrêt avec confirmation, le niveau de flamme P1 à P5, les plages du jour avec le prochain changement et un éditeur intégré, un graphique 24 h (température, consigne, périodes de marche), les allumages et le temps de chauffe sur 24 h, la température des fumées, et un panneau de diagnostic repliable. Quand l'ESP est hors ligne, les commandes sont désactivées et une notification explique pourquoi une commande a échoué.
 
@@ -316,7 +321,7 @@ Ce qu'elle affiche : l'illustration du poêle (flamme, lueur et fumée suivent l
 
 ## Thermomètre d'ambiance (Bluetooth)
 
-N'importe quelle entité de température convient. Un thermomètre BLE bon marché est parfait, reçu par le Bluetooth de ton serveur Home Assistant, ou par un ESP32 relais Bluetooth **séparé** si le serveur est trop loin (pas l'ESP du poêle, voir le dépannage).
+N'importe quelle entité de température convient. Un thermomètre BLE bon marché est parfait, reçu par le Bluetooth de ton serveur Home Assistant. L'ESP du poêle peut aussi lire un SwitchBot Meter **directement** (indique son adresse MAC dans les substitutions) : c'est le secours utilisé quand Home Assistant est injoignable, à condition que le thermomètre soit à quelques mètres de l'ESP.
 
 - SwitchBot Meter / Outdoor Meter : l'intégration **SwitchBot Bluetooth** intégrée le lit en local. **Pas de compte SwitchBot, pas de hub, pas de cloud.**
 - Place-le dans la pièce, à hauteur d'homme, loin du rayonnement du poêle et des fenêtres.
@@ -357,19 +362,32 @@ La télécommande parle sur le même bus. Les deux peuvent cohabiter (d'où les 
 <details>
 <summary><b>Le poêle continue de chauffer après la plage ou la consigne</b></summary>
 
-Vécu : l'ESP a décroché d'Home Assistant quelques minutes à plusieurs reprises, et à chaque retour l'interrupteur passait de `unavailable` à `on`. Une automatisation qui mesure « allumé depuis 45 min » avec le `last_changed` de l'interrupteur repart de zéro à chaque reconnexion, et n'éteint donc jamais le poêle. Le package mémorise donc l'heure des vrais passages marche/arrêt dans `input_datetime.poele_dernier_changement_marche_arret`. Si l'ESP décroche souvent, garde le Bluetooth hors de cet ESP (voir ci-dessous) et vérifie le signal Wi-Fi (mieux que −75 dBm).
+Vécu : l'ESP a décroché d'Home Assistant quelques minutes à plusieurs reprises, et à chaque retour l'interrupteur passait de `unavailable` à `on`. Une automatisation qui mesure « allumé depuis 45 min » avec le `last_changed` de l'interrupteur repart de zéro à chaque reconnexion, et n'éteint donc jamais le poêle. C'est une des raisons du passage de la programmation dans l'ESP : ses minuteries ne peuvent pas être remises à zéro par une reconnexion, et il continue de fonctionner déconnecté.
 </details>
 
 <details>
-<summary><b>Pourquoi ne pas faire de l'ESP du poêle un relais Bluetooth ?</b></summary>
+<summary><b>L'ESP décroche sans arrêt du Wi-Fi / de Home Assistant</b></summary>
 
-Essayé quelques jours pour recevoir le thermomètre de la pièce. Wi-Fi + BLE + le bus Micronova lent (1200 bauds) sur un seul ESP32 : coupures avec Home Assistant toutes les quelques minutes, même en scan passif, sans connexions BLE et avec moins de journaux, alors que le même ESP tournait des jours sans une coupure avant. Ça n'en vaut pas la peine. Si ton thermomètre est hors de portée du serveur Home Assistant, utilise un deuxième ESP32 dédié au relais Bluetooth.
+Vécu : des coupures toutes les quelques minutes, parfois pendant des heures, même à 5 m de la box et même avec un bon signal, alors que la box voyait toujours l'ESP connecté. Le Bluetooth a d'abord été accusé, à tort : les coupures continuaient sans lui. Ce qui a réglé le problème, dans les réglages **2,4 GHz** de la box (l'ESP32 ne sait pas faire le 5 GHz) :
+
+- un **canal fixe** (1, 6 ou 11, le moins encombré) au lieu d'automatique ;
+- une largeur de canal de **20 MHz** ;
+- le **Wi-Fi 6 (802.11ax) désactivé en 2,4 GHz** : les puces d'objets connectés un peu anciennes comme l'ESP32 le supportent mal. Téléphones et ordis n'y perdent rien, ils utilisent le 5 GHz ;
+- et côté ESP, **plus de point d'accès de secours** (voir les notes ESPHome).
+
+Depuis, zéro coupure sur des nuits entières, avec la lecture Bluetooth directe activée. Un compteur incrémenté quand `sensor.poele_signal_wifi` devient indisponible est pratique pour vérifier.
+</details>
+
+<details>
+<summary><b>Faut-il faire de l'ESP du poêle un relais Bluetooth complet ?</b></summary>
+
+Pas besoin. Lire un seul thermomètre directement (scan passif, 10 % du temps) marche bien. Un relais complet transmet à Home Assistant toutes les annonces Bluetooth de la maison, beaucoup plus de travail pour un ESP qui interroge déjà un bus lent à 1200 bauds. Si ton thermomètre est hors de portée du serveur Home Assistant, utilise un ESP32 séparé comme relais.
 </details>
 
 <details>
 <summary><b>Le poêle s'est mis en alarme (plus de granulés, échec d'allumage)</b></summary>
 
-Vécu : réservoir vide, « plus de granulés » puis « échec d'allumage ». La première version de l'automatisation éteignait le poêle à la fin de la plage, ce qui **efface l'alarme** sur une carte Micronova, puis le relançait à la plage suivante : un deuxième chargement de granulés par-dessus le premier, non brûlé. Désormais l'automatisation `poele_alarme` verrouille la programmation. Recharge, **vide le brasier**, puis appuie sur *réarmer* sur la carte (ou lance `script.poele_rearmer`).
+Vécu : réservoir vide, « plus de granulés » puis « échec d'allumage ». La première version de l'automatisation éteignait le poêle à la fin de la plage, ce qui **efface l'alarme** sur une carte Micronova, puis le relançait à la plage suivante : un deuxième chargement de granulés par-dessus le premier, non brûlé. Désormais l'ESP verrouille sa programmation dès qu'une alarme apparaît, et l'automatisation `poele_alarme` te prévient. Recharge, **vide le brasier**, puis appuie sur *réarmer* sur la carte (ou lance `script.poele_rearmer`).
 </details>
 
 <details>
@@ -383,10 +401,10 @@ Si tu visses les colonnettes de l'adaptateur à travers la paroi depuis l'extér
 ```
 .
 ├── esphome/
-│   ├── pellet-stove.yaml          config ESPHome (micronova + diagnostic)
+│   ├── pellet-stove.yaml          config ESPHome (micronova + programmation autonome)
 │   └── secrets.example.yaml
 ├── homeassistant/packages/
-│   └── pellet_stove.yaml          entrées + plages + thermostat + verrou d'alarme
+│   └── pellet_stove.yaml          entrées + recopie vers l'ESP + alarme
 ├── lovelace/
 │   └── poele-card.js              carte de tableau de bord
 ├── hardware/enclosure/

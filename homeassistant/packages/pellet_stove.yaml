@@ -1,23 +1,21 @@
-# Home Assistant package: helpers + thermostat/schedule automation for the pellet stove.
+# Home Assistant package for the pellet stove: helpers (the UI) + sync to the ESP + alarm lock.
+#
+# Since v2 the schedule/thermostat runs ON THE ESP (it keeps working without Wi-Fi/HA).
+# Home Assistant is the interface: change the setpoint, mode, on/off or time slots here or on
+# the card, and the "poele_synchro_esp" automation copies them into the ESP immediately.
 #
 # Install:
 #   1. configuration.yaml ->   homeassistant:
 #                                packages: !include_dir_named packages
 #   2. Copy this file to <config>/packages/pellet_stove.yaml
-#   3. Replace sensor.room_temperature below with YOUR room thermometer
-#      (any temperature sensor works: BLE, Zigbee, Wi-Fi...). If it is unavailable,
-#      the automation falls back to the stove's own reading.
-#   4. Restart Home Assistant, then edit the time slots from the UI
-#      (Settings -> Devices & services -> Helpers -> "Poêle - plages horaires").
+#   3. Set your room thermometer in the ESPHome config (substitution room_temperature_entity).
+#   4. Restart Home Assistant, then edit the time slots from the card
+#      (or Settings -> Devices & services -> Helpers -> "Poêle - plages horaires").
 
 input_boolean:
   poele_programmation:
     name: Poêle - programmation
     icon: mdi:calendar-clock
-  # Last known on/off state of the stove, used by poele_memo_bascule
-  poele_marche_memorisee:
-    name: Poêle - marche mémorisée
-    icon: mdi:fire
   # Set by the poele_alarme automation; blocks the schedule until the stove is re-armed
   poele_alarme_a_traiter:
     name: Poêle - alarme à traiter
@@ -49,17 +47,6 @@ input_select:
       - "Température seule"       # plain thermostat, ignore time slots
     icon: mdi:tune-variant
 
-# Time of the last REAL off->on / on->off change of the stove. Kept by the
-# poele_memo_bascule automation below. The switch's own last_changed can't be used:
-# it is reset every time the ESP reconnects (unavailable -> on), which would restart
-# the 30/45 min timers again and again and keep the stove running.
-input_datetime:
-  poele_dernier_changement_marche_arret:
-    name: Poêle - dernier changement marche/arrêt
-    has_date: true
-    has_time: true
-    icon: mdi:timer-sync-outline
-
 # Example slots only: change them to fit your life (UI editing is easier).
 schedule:
   poele_plages_horaires:
@@ -80,101 +67,103 @@ schedule:
     sunday: *weekend
 
 automation:
-  - id: poele_memo_bascule
-    alias: Poêle - mémoriser marche/arrêt
+  # Copies the helpers into the ESP (which runs the schedule itself).
+  # Also runs every 15 min and whenever the ESP reconnects.
+  - id: poele_synchro_esp
+    alias: Poêle - synchro ESP
     description: >-
-      Records the time of real off/on changes. Compares with the last known state,
-      so ESP disconnections are ignored, even when the stove changed state during one.
+      Copies setpoint, mode, on/off and time slots into the stove ESP,
+      which runs the schedule itself (even without Home Assistant).
     mode: queued
+    max: 3
     triggers:
-      - trigger: state
-        entity_id: switch.poele_poele
-        to: ["on", "off"]
-    conditions:
-      # Only a real change versus the last known state (unavailable -> same state is ignored)
-      - condition: template
-        value_template: >-
-          {{ (trigger.to_state.state == 'on') != is_state('input_boolean.poele_marche_memorisee', 'on') }}
-    actions:
-      - action: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.poele_dernier_changement_marche_arret
-        data:
-          timestamp: "{{ as_timestamp(now()) }}"
-      - action: "input_boolean.turn_{{ trigger.to_state.state }}"
-        target:
-          entity_id: input_boolean.poele_marche_memorisee
-
-  - id: poele_programmation
-    alias: Poêle - programmation
-    description: >-
-      Turns the stove on/off from the time slots and/or the room temperature
-      (±0.5 °C hysteresis), with anti short-cycle protection.
-    mode: single
-    triggers:
-      - trigger: time_pattern
-        minutes: "/5"
       - trigger: state
         entity_id:
-          - schedule.poele_plages_horaires
-          - input_boolean.poele_programmation
-          - input_select.poele_mode_programmation
           - input_number.poele_consigne
+          - input_select.poele_mode_programmation
+          - input_boolean.poele_programmation
+      - trigger: state
+        entity_id: switch.poele_poele
+        from: "unavailable"
+      - trigger: time_pattern
+        minutes: "/15"
+      - trigger: homeassistant
+        event: start
     conditions:
-      - condition: state
-        entity_id: input_boolean.poele_programmation
-        state: "on"
-      # Never touch a stove in alarm: switching it off would clear the alarm,
-      # and the next time slot would reload pellets on top of the unburnt ones.
-      - condition: state
-        entity_id: input_boolean.poele_alarme_a_traiter
-        state: "off"
-      # Do nothing while the ESP is offline
       - condition: template
-        value_template: "{{ states('switch.poele_poele') in ['on', 'off'] }}"
-    variables:
-      mode: "{{ states('input_select.poele_mode_programmation') }}"
-      # Room thermometer first, stove reading as fallback. Values <= 3 °C are treated as invalid.
-      t: >-
-        {% set s = states('sensor.room_temperature') | float(-100) %}
-        {% set r = states('sensor.poele_temperature_ambiante') | float(0) %}
-        {{ s if s > 3 else r }}
-      t_valide: "{{ t > 3 }}"
-      c: "{{ states('input_number.poele_consigne') | float(20) }}"
-      allume: "{{ is_state('switch.poele_poele', 'on') }}"
-      etat: "{{ states('sensor.poele_etat') }}"
-      plage: "{{ is_state('schedule.poele_plages_horaires', 'on') }}"
-      # Minutes since the last real on/off change (see input_datetime above)
-      depuis_min: >-
-        {{ ((as_timestamp(now()) - (state_attr('input_datetime.poele_dernier_changement_marche_arret', 'timestamp') | float(0))) / 60) | int }}
-      # Hysteresis: keep heating up to setpoint +0.5, restart below setpoint -0.5
-      temp_ok: "{{ (t < c + 0.5) if allume else (t < c - 0.5) }}"
-      voulu: >-
-        {% if mode == 'Horaire seul' %}{{ plage }}{% elif not t_valide %}{{ plage if mode != 'Température seule' else false }}{% elif mode == 'Température seule' %}{{ temp_ok }}{% else %}{{ plage and temp_ok }}{% endif %}
+        value_template: "{{ states('switch.poele_poele') not in ['unavailable', 'unknown'] }}"
     actions:
-      - choose:
-          # ON: wanted, currently off, fully cooled down, and off for at least 30 min
-          - conditions:
-              - condition: template
-                value_template: >-
-                  {{ voulu and not allume and etat in ['Off', 'Éteint'] and depuis_min >= 30 }}
-            sequence:
-              - action: switch.turn_on
-                target:
-                  entity_id: switch.poele_poele
-          # OFF: not wanted anymore and running for at least 45 min
-          - conditions:
-              - condition: template
-                value_template: "{{ not voulu and allume and depuis_min >= 45 }}"
-            sequence:
-              - action: switch.turn_off
-                target:
-                  entity_id: switch.poele_poele
+      - action: schedule.get_schedule
+        target:
+          entity_id: schedule.poele_plages_horaires
+        response_variable: sched
+      - action: number.set_value
+        target:
+          entity_id: number.poele_consigne_esp
+        data:
+          value: "{{ states('input_number.poele_consigne') }}"
+      - action: select.select_option
+        target:
+          entity_id: select.poele_mode_esp
+        data:
+          option: "{{ states('input_select.poele_mode_programmation') }}"
+      - action: "switch.turn_{{ 'on' if is_state('input_boolean.poele_programmation', 'on') else 'off' }}"
+        target:
+          entity_id: switch.poele_programmation_esp
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_lundi
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].monday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_mardi
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].tuesday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_mercredi
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].wednesday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_jeudi
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].thursday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_vendredi
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].friday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_samedi
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].saturday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
+      - action: text.set_value
+        target:
+          entity_id: text.poele_plages_dimanche
+        data:
+          # time objects can't be stored in variables: read the response directly
+          value: >-
+            {% set ns = namespace(l=[]) %}{% for x in sched['schedule.poele_plages_horaires'].sunday | default([]) %}{% set ns.l = ns.l + [(x['from'] | string)[:5] ~ '-' ~ (x['to'] | string)[:5]] %}{% endfor %}{{ ns.l | join(',') }}
 
   - id: poele_alarme
     alias: Poêle - alarme
     description: >-
-      Locks the schedule and notifies when the stove goes into alarm.
+      Notifies when the stove goes into alarm (the ESP locks its schedule by itself).
       Unlocked manually with the "Poêle - réarmer" script (button on the card).
     mode: queued
     triggers:
@@ -210,6 +199,9 @@ script:
     icon: mdi:restart-alert
     mode: single
     sequence:
+      - action: button.press   # clears the ESP's own alarm lock (and switches the stove off)
+        target:
+          entity_id: button.poele_rearmer
       - action: switch.turn_off   # on a Micronova board, "off" clears the alarm
         target:
           entity_id: switch.poele_poele

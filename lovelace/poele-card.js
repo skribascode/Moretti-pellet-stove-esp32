@@ -3,7 +3,7 @@
  * No dependency. Copy to /config/www/poele-card.js, add resource /local/poele-card.js (JavaScript module).
  * UI text is in French.
  */
-const PC_VERSION = "1.5.0";
+const PC_VERSION = "1.5.2";
 
 const DEFAULTS = {
   title: "Poêle",
@@ -26,6 +26,8 @@ const DEFAULTS = {
   alarm_lock: "input_boolean.poele_alarme_a_traiter", // verrou posé par l'automatisation « Poêle - alarme »
   alarm_cause: "input_text.poele_cause_alarme",
   rearm: "script.poele_rearmer",
+  decision: "sensor.poele_decision_programmation", // programmation autonome dans l'ESP
+  sync: "automation.poele_synchro_esp", // recopie immédiate des plages dans l'ESP (programmation autonome)
 };
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -556,6 +558,9 @@ class PoeleCard extends HTMLElement {
     DAYS.forEach((d) => (payload[d] = ed.days[d].map((s) => ({ from: s.from + ":00", to: s.to + ":00" }))));
     try {
       await this._hass.callWS(payload);
+      if (this._cfg.sync && this._hass.states[this._cfg.sync]) {
+        this._hass.callService("automation", "trigger", { entity_id: this._cfg.sync, skip_condition: false }).catch(() => {});
+      }
       this._editor = null;
       this._renderEditor();
       await this._loadSchedule();
@@ -662,7 +667,9 @@ class PoeleCard extends HTMLElement {
         <div class="row"><span>Adresse IP</span><b>${esc(ip ? ip.state : "—")}</b></div>
         <div class="row"><span>Dernier redémarrage ESP</span><b>${upTxt}</b></div>
         <div class="row"><span>Version ESPHome</span><b>${esc(ver ? ver.state.split(" ")[0] : "—")}</b></div>
-        <div class="row" data-action="more" data-e="${this._cfg.automation}"><span>Automatisation de programmation</span><b>${this._s("automation") && this._s("automation").state === "on" ? "active" : "inactive"}</b></div>
+        ${this._s("decision")
+          ? `<div class="row" data-action="more" data-e="${this._cfg.decision}"><span>Décision de l'ESP</span><b class="espdec">${esc(this._s("decision").state)}</b></div>`
+          : `<div class="row" data-action="more" data-e="${this._cfg.automation}"><span>Automatisation de programmation</span><b>${this._s("automation") && this._s("automation").state === "on" ? "active" : "inactive"}</b></div>`}
       </div>`
           : ""
       }`;
@@ -951,6 +958,7 @@ PoeleCard.styles = `
   .dot.ok { background: #30a46c; } .dot.ko { background: #e5484d; }
   .rows { margin-top: 8px; }
   .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--divider-color, rgba(127,127,127,.15)); }
+  .row b.espdec { font-size: 12.5px; font-weight: 600; text-align: right; }
   .row:last-child { border-bottom: none; }
   .row[data-action] { cursor: pointer; }
   .row span { color: var(--secondary-text-color); }
