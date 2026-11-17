@@ -17,6 +17,18 @@ substitutions:
 esphome:
   name: poele
   friendly_name: Poêle
+  # Start the Bluetooth scan explicitly, continuously, once everything is up
+  # (without this the scan never started at boot: 0 advertisements received).
+  on_boot:
+    priority: -100
+    then:
+      - delay: 20s
+      - if:
+          condition:
+            switch.is_on: ble_on
+          then:
+            - esp32_ble_tracker.start_scan:
+                continuous: true
 
 esp32:
   board: esp32dev
@@ -62,6 +74,8 @@ esp32_ble_tracker:
     active: false
     interval: 1100ms
     window: 110ms
+  # SwitchBot Meter: temperature in the manufacturer data (0x0969) of the main advertisement,
+  # so a passive scan is enough (an active scan slowed Wi-Fi down a lot: OTA 2 min instead of 13 s)
   on_ble_manufacturer_data_advertise:
     - mac_address: ${thermometer_mac}
       manufacturer_id: "0969"
@@ -70,6 +84,18 @@ esp32_ble_tracker:
             if (x.size() < 11) return;
             float t = (x[9] & 0x7F) + (x[8] & 0x0F) / 10.0f;
             if (!(x[9] & 0x80)) t = -t;
+            if (t != id(ble_temp)) ESP_LOGI("ble", "SwitchBot: %.1f °C", t);
+            id(ble_temp) = t;
+            id(ble_ms) = millis();
+  # Some firmwares only put it in the service data (UUID FD3D)
+  on_ble_service_data_advertise:
+    - mac_address: ${thermometer_mac}
+      service_uuid: "FD3D"
+      then:
+        - lambda: |-
+            if (x.size() < 6) return;
+            float t = (x[4] & 0x7F) + (x[3] & 0x0F) / 10.0f;
+            if (!(x[4] & 0x80)) t = -t;
             id(ble_temp) = t;
             id(ble_ms) = millis();
 
@@ -328,6 +354,7 @@ switch:
     entity_category: config
     on_turn_on:
       - esp32_ble_tracker.start_scan:
+          continuous: true   # without it: a single 5-min scan, then nothing
     on_turn_off:
       - esp32_ble_tracker.stop_scan:
 

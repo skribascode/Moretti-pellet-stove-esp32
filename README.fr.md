@@ -375,13 +375,13 @@ Vécu : des coupures toutes les quelques minutes, parfois pendant des heures, m�
 - le **Wi-Fi 6 (802.11ax) désactivé en 2,4 GHz** : les puces d'objets connectés un peu anciennes comme l'ESP32 le supportent mal. Téléphones et ordis n'y perdent rien, ils utilisent le 5 GHz ;
 - et côté ESP, **plus de point d'accès de secours** (voir les notes ESPHome).
 
-Depuis, zéro coupure sur des nuits entières, avec la lecture Bluetooth directe activée. Un compteur incrémenté quand `sensor.poele_signal_wifi` devient indisponible est pratique pour vérifier.
+Depuis, plus de coupures. Un compteur incrémenté quand `sensor.poele_signal_wifi` devient indisponible est pratique pour vérifier.
 </details>
 
 <details>
 <summary><b>Faut-il faire de l'ESP du poêle un relais Bluetooth complet ?</b></summary>
 
-Pas besoin. Lire un seul thermomètre directement (scan passif, 10 % du temps) marche bien. Un relais complet transmet à Home Assistant toutes les annonces Bluetooth de la maison, beaucoup plus de travail pour un ESP qui interroge déjà un bus lent à 1200 bauds. Si ton thermomètre est hors de portée du serveur Home Assistant, utilise un ESP32 séparé comme relais.
+Pas besoin. Lire un seul thermomètre directement (scan passif, 10 % du temps) suffit. Deux pièges : `esp32_ble_tracker.start_scan` sans `continuous: true` scanne 5 minutes puis s'arrête, et le scan peut ne pas démarrer tout seul au boot (d'où le `on_boot` dans la config). Un scan actif est inutile aussi et ralentit beaucoup le Wi-Fi. Un relais complet transmet à Home Assistant toutes les annonces Bluetooth de la maison, beaucoup plus de travail pour un ESP qui interroge déjà un bus lent à 1200 bauds. Si ton thermomètre est hors de portée du serveur Home Assistant, utilise un ESP32 séparé comme relais.
 </details>
 
 <details>

@@ -375,13 +375,13 @@ Real case: drops every few minutes, sometimes for hours, even 5 m from the route
 - **Wi-Fi 6 (802.11ax) disabled on 2.4 GHz**: older IoT chips like the ESP32 cope badly with it. Phones and laptops are unaffected, they use 5 GHz;
 - and on the ESP side, **no fallback hotspot** (see the ESPHome notes).
 
-Since then, zero drops over whole nights, with direct Bluetooth reading enabled. A counter helper incremented when `sensor.poele_signal_wifi` becomes unavailable is a handy way to check.
+Since then, no more drops. A counter helper incremented when `sensor.poele_signal_wifi` becomes unavailable is a handy way to check.
 </details>
 
 <details>
 <summary><b>Should the stove ESP be a full Bluetooth proxy?</b></summary>
 
-Not needed. Reading one thermometer directly (passive, 10 % duty cycle) works fine. A full proxy forwards every Bluetooth advertisement in the house to Home Assistant, which is a lot more work for an ESP that also polls a slow 1200-baud bus. If your thermometer is out of range of the Home Assistant host, use a separate ESP32 as proxy.
+Not needed. Reading one thermometer directly (passive, 10 % duty cycle) is enough. Two traps: `esp32_ble_tracker.start_scan` without `continuous: true` scans for 5 minutes and then stops, and the scan may not start by itself at boot (hence the `on_boot` in the config). An active scan isn't needed either and slows Wi-Fi down a lot. A full proxy forwards every Bluetooth advertisement in the house to Home Assistant, which is a lot more work for an ESP that also polls a slow 1200-baud bus. If your thermometer is out of range of the Home Assistant host, use a separate ESP32 as proxy.
 </details>
 
 <details>
