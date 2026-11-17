@@ -69,7 +69,7 @@ La télécommande d'origine dort maintenant dans un tiroir. 🧦
 - 🔌 **Contrôle local**, sans cloud ni appli constructeur : marche/arrêt, niveau de flamme P1 à P5, état en direct (allumage, chauffe, nettoyage, alarmes…).
 - 📱 **De partout** : avec l'accès à distance à Home Assistant (Home Assistant Cloud, un VPN ou ton propre reverse proxy), tu allumes le poêle sur le chemin du retour quand il fait froid, et tu rentres dans une maison déjà chaude.
 - 🧠 **Autonome** : la programmation et le thermostat tournent **dans l'ESP**. Si le Wi-Fi ou Home Assistant tombe, le poêle continue de suivre les derniers réglages reçus. Home Assistant sert de télécommande.
-- 🌡️ **Vrai thermostat** : consigne avec hystérésis de ±0,5 °C, basée sur ton thermomètre d'ambiance (via Home Assistant, ou lu directement par l'ESP en Bluetooth en secours).
+- 🌡️ **Vrai thermostat avec modulation** : allume sous la consigne, passe la flamme au minimum une fois atteinte, éteint à consigne + 1 °C, basée sur ton thermomètre d'ambiance (via Home Assistant, ou lu directement par l'ESP en Bluetooth en secours).
 - 🗓️ **Programmation** : « Horaire + température », « Horaire seul » ou « Température seule », plages modifiables depuis la carte.
 - 🛡️ **Protections** : ne relance jamais un poêle qui n'a pas fini son refroidissement, 30 min d'arrêt et 45 min de marche minimum.
 - 🚨 **Gestion des alarmes** : quand le poêle signale une alarme (plus de granulés, échec d'allumage…), la carte affiche la cause et quoi faire en clair, Home Assistant te prévient, et la programmation est verrouillée jusqu'au réarmement : elle ne recharge jamais de granulés par-dessus ceux qui n'ont pas brûlé.
@@ -233,7 +233,7 @@ Garde `name: poele`, sinon adapte les entités dans le package et la carte. Enti
 - **Interrogations volontairement espacées** (60 à 300 s) : si la télécommande d'origine sert encore, chaque trame risque une collision.
 - **Substitutions en tête de fichier** : l'entité de ton thermomètre dans Home Assistant, et en option l'adresse MAC d'un SwitchBot Meter que l'ESP lit directement en Bluetooth (scan passif léger, pas de relais).
 - **Pas de point d'accès de secours** : avec `ap:` + `captive_portal`, une coupure Wi-Fi faisait basculer l'ESP sur son propre point d'accès, et il ne cherchait presque plus à se reconnecter ; retiré.
-- **Nouvelles entités** : `text.poele_plages_<jour>`, `number.poele_consigne_esp`, `select.poele_mode_esp`, `switch.poele_programmation_esp` (remplies par le package), `sensor.poele_decision_programmation` (ce que l'ESP décide et pourquoi), `button.poele_rearmer`, `binary_sensor.poele_alarme_a_traiter_esp`.
+- **Nouvelles entités** : `text.poele_plages_<jour>`, `number.poele_consigne_esp`, `select.poele_mode_esp`, `switch.poele_programmation_esp` (remplies par le package), `sensor.poele_decision_programmation` (ce que l'ESP décide et pourquoi), `button.poele_rearmer`, `binary_sensor.poele_alarme_a_traiter_esp`, `number.poele_puissance_de_chauffe_esp` (puissance de flamme normale).
 - **Diagnostic** : mémoire libre, durée de boucle et cause du dernier redémarrage (coupure, plantage, watchdog…) sont exposées en capteurs.
 
 ## Home Assistant : thermostat et programmation
@@ -277,9 +277,17 @@ flowchart TD
     J -- non --> Z
 ```
 
-<sub>* hystérésis : en marche, on chauffe jusqu'à consigne + 0,5 °C ; à l'arrêt, on relance sous consigne − 0,5 °C. Sans température valable (rien reçu, ou Home Assistant injoignable depuis plus de 30 min), le mode « Horaire + température » se replie sur l'horaire seul. Les minuteries marche/arrêt vivent dans l'ESP : une reconnexion ne peut pas les remettre à zéro.</sub>
+<sub>* allumage sous la consigne ; en marche, on chauffe jusqu'à consigne + 1 °C. Sans température valable (rien reçu, ou Home Assistant injoignable depuis plus de 30 min), le mode « Horaire + température » se replie sur l'horaire seul. Les minuteries marche/arrêt vivent dans l'ESP : une reconnexion ne peut pas les remettre à zéro.</sub>
 
-Entre ces décisions marche/arrêt, le poêle module lui-même sa puissance (niveau de flamme réglable depuis la carte).
+**Modulation de la flamme** pendant la chauffe (« En chauffe ») :
+
+| Température de la pièce | Flamme |
+|---|---|
+| sous la consigne | `number.poele_puissance_de_chauffe_esp` (ta puissance normale, 1 à 5) |
+| de la consigne à consigne + 1 °C | 1 (minimum) |
+| consigne + 1 °C ou plus | extinction (après les 45 min minimum) |
+
+Retour à la puissance normale sous consigne − 0,2 °C, pour ne pas changer de puissance à chaque dixième de degré. En mode « Horaire seul », ou sans température, la flamme reste à la puissance normale.
 
 ## Carte du tableau de bord
 

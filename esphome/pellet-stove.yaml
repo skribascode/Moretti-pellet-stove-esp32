@@ -118,6 +118,10 @@ globals:
     type: bool
     restore_value: true
     initial_value: "false"
+  # last flame level requested by the schedule (0 = none yet)
+  - id: flamme_cible
+    type: int
+    initial_value: "0"
   - id: alarme_verrou
     type: bool
     restore_value: true
@@ -289,7 +293,20 @@ number:
   - platform: micronova
     power_level:
       name: "Niveau de flamme"
+      id: flamme
       update_interval: 300s
+  # Flame level used while the room is below the setpoint
+  - platform: template
+    name: "Puissance de chauffe (ESP)"
+    id: puissance_normale
+    optimistic: true
+    restore_value: true
+    initial_value: 3
+    min_value: 1
+    max_value: 5
+    step: 1
+    icon: mdi:fire
+    entity_category: config
   - platform: template
     name: "Consigne (ESP)"
     id: consigne
@@ -361,7 +378,8 @@ switch:
 # ------------------------------------------------------------------ Autonomous schedule
 # Runs on the ESP, with or without Home Assistant.
 # Temperature: direct BLE (< 10 min old) first, else Home Assistant (while connected, or 30 min after
-# a disconnection), else none -> "time slots only". Hysteresis ±0.5 °C, min 30 min off / 45 min on, alarm lock.
+# a disconnection), else none -> "time slots only". Start below the setpoint, flame 1 from the setpoint, off at setpoint + 1 °C;
+# min 30 min off / 45 min on, alarm lock.
 interval:
   - interval: 60s
     then:
@@ -416,7 +434,8 @@ interval:
           else if (id(ha_ms) != 0 && id(temp_ha).state > 3 && (api::global_api_server->is_connected() || millis() - id(ha_ms) < 30UL * 60 * 1000)) { t = id(temp_ha).state; src = "HA"; }
           const bool t_valide = !std::isnan(t);
           const float c = id(consigne).state;
-          const bool temp_ok = t_valide && (allume ? (t < c + 0.5f) : (t < c - 0.5f));
+          // start below the setpoint, stop at setpoint + 1 °C (flame at minimum in between, see below)
+          const bool temp_ok = t_valide && (allume ? (t < c + 1.0f) : (t < c));
 
           const std::string mode = id(mode_prog).current_option();
           bool voulu;
@@ -426,10 +445,28 @@ interval:
           else voulu = plage && temp_ok;
 
           const int depuis = ((int) now.timestamp - id(dernier_changement)) / 60;
+          // Modulation: setpoint reached -> flame 1; back to the normal level below setpoint - 0.2
+          const int normale = (int) id(puissance_normale).state;
+          int cible = id(flamme_cible);
+          if (etat == "En chauffe" && voulu) {
+            if (mode == "Horaire seul" || !t_valide) cible = normale;
+            else if (t >= c) cible = 1;
+            else if (t < c - 0.2f || cible == 0) cible = normale;
+            if (cible != id(flamme_cible)) {
+              ESP_LOGI("prog", "Flame %d -> %d (T %.1f / setpoint %.1f)", id(flamme_cible), cible, t, c);
+              auto call = id(flamme).make_call();
+              call.set_value(cible);
+              call.perform();
+              id(flamme_cible) = cible;
+            }
+          } else if (!allume) {
+            id(flamme_cible) = 0;   // re-applied at the next ignition
+          }
+
           char buf[180];
-          snprintf(buf, sizeof(buf), "%02d:%02d %s | plage %s | T %s %.1f (%s) / consigne %.1f | %d min",
+          snprintf(buf, sizeof(buf), "%02d:%02d %s | plage %s | T %s %.1f (%s) / consigne %.1f | flamme %d | %d min",
                    now.hour, now.minute, voulu ? "chauffer" : "arrêt", plage ? "oui" : "non", t_valide ? "" : "?", t_valide ? t : 0.0f,
-                   src.c_str(), c, depuis);
+                   src.c_str(), c, (int) id(flamme).state, depuis);
           id(decision).publish_state(buf);
 
           if (voulu && !allume && etat == "Éteint" && depuis >= 30) {
