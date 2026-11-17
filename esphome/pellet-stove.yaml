@@ -122,6 +122,10 @@ globals:
   - id: flamme_cible
     type: int
     initial_value: "0"
+  # time (epoch) since the room has been above setpoint + 1 °C (0 = not)
+  - id: chaud_depuis
+    type: int
+    initial_value: "0"
   - id: alarme_verrou
     type: bool
     restore_value: true
@@ -307,6 +311,19 @@ number:
     step: 1
     icon: mdi:fire
     entity_category: config
+  # Switch off only if the room stays above setpoint + 1 °C for this long
+  - platform: template
+    name: "Délai avant extinction (ESP)"
+    id: delai_ext
+    optimistic: true
+    restore_value: true
+    initial_value: 10
+    min_value: 0
+    max_value: 60
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+    entity_category: config
   - platform: template
     name: "Consigne (ESP)"
     id: consigne
@@ -378,7 +395,8 @@ switch:
 # ------------------------------------------------------------------ Autonomous schedule
 # Runs on the ESP, with or without Home Assistant.
 # Temperature: direct BLE (< 10 min old) first, else Home Assistant (while connected, or 30 min after
-# a disconnection), else none -> "time slots only". Start below the setpoint, flame 1 from the setpoint, off at setpoint + 1 °C;
+# a disconnection), else none -> "time slots only". Start below the setpoint, flame 1 from the setpoint, off once the room stays above setpoint + 1 °C
+# for 10 min (adjustable);
 # min 30 min off / 45 min on, alarm lock.
 interval:
   - interval: 60s
@@ -434,8 +452,12 @@ interval:
           else if (id(ha_ms) != 0 && id(temp_ha).state > 3 && (api::global_api_server->is_connected() || millis() - id(ha_ms) < 30UL * 60 * 1000)) { t = id(temp_ha).state; src = "HA"; }
           const bool t_valide = !std::isnan(t);
           const float c = id(consigne).state;
-          // start below the setpoint, stop at setpoint + 1 °C (flame at minimum in between, see below)
-          const bool temp_ok = t_valide && (allume ? (t < c + 1.0f) : (t < c));
+          // start below the setpoint; flame at minimum between setpoint and setpoint + 1 °C (see below);
+          // switch off only if the room stays above setpoint + 1 °C for the delay (10 min by default)
+          if (allume && t_valide && t >= c + 1.0f) { if (id(chaud_depuis) == 0) id(chaud_depuis) = (int) now.timestamp; }
+          else id(chaud_depuis) = 0;
+          const int chaud_min = id(chaud_depuis) ? ((int) now.timestamp - id(chaud_depuis)) / 60 : 0;
+          const bool temp_ok = t_valide && (allume ? (t < c + 1.0f || chaud_min < (int) id(delai_ext).state) : (t < c));
 
           const std::string mode = id(mode_prog).current_option();
           bool voulu;
@@ -464,9 +486,9 @@ interval:
           }
 
           char buf[180];
-          snprintf(buf, sizeof(buf), "%02d:%02d %s | plage %s | T %s %.1f (%s) / consigne %.1f | flamme %d | %d min",
+          snprintf(buf, sizeof(buf), "%02d:%02d %s | plage %s | T %s %.1f (%s) / consigne %.1f | flamme %d | %d min%s",
                    now.hour, now.minute, voulu ? "chauffer" : "arrêt", plage ? "oui" : "non", t_valide ? "" : "?", t_valide ? t : 0.0f,
-                   src.c_str(), c, (int) id(flamme).state, depuis);
+                   src.c_str(), c, (int) id(flamme).state, depuis, id(chaud_depuis) ? (std::string(" | trop chaud depuis ") + std::to_string(chaud_min) + " min").c_str() : "");
           id(decision).publish_state(buf);
 
           if (voulu && !allume && etat == "Éteint" && depuis >= 30) {

@@ -69,7 +69,7 @@ The original remote now lives in a drawer. 🧦
 - 🔌 **Local control**, no cloud, no vendor app: on/off, flame level P1–P5, live state (ignition, heating, cleaning, alarms…).
 - 📱 **From anywhere**: with remote access to Home Assistant (Home Assistant Cloud, a VPN or your own reverse proxy), light the stove on your way home when it's cold, and come back to a warm house.
 - 🧠 **Autonomous**: the schedule and thermostat run **on the ESP**. If Wi-Fi or Home Assistant goes down, the stove keeps following the last settings it received. Home Assistant is the remote control.
-- 🌡️ **Real thermostat with modulation**: starts below the setpoint, drops to the lowest flame once it's reached, switches off at setpoint + 1 °C, using your room thermometer (via Home Assistant, or read directly by the ESP over Bluetooth as a backup).
+- 🌡️ **Real thermostat with modulation**: starts below the setpoint, drops to the lowest flame once it's reached, switches off once the room stays above setpoint + 1 °C for 10 min (like the Micronova stand-by / eco mode), using your room thermometer (via Home Assistant, or read directly by the ESP over Bluetooth as a backup).
 - 🗓️ **Schedules**: "time slots + temperature", "time slots only" or "temperature only", editable from the card.
 - 🛡️ **Protections**: never restarts a stove that hasn't finished its cooling cycle, minimum 30 min off / 45 min on.
 - 🚨 **Alarm handling**: when the stove reports an alarm (no pellets, ignition failure…), the card shows the cause and what to do in plain words, Home Assistant notifies you, and the schedule is locked until you re-arm, so it never reloads pellets on top of unburnt ones.
@@ -233,7 +233,7 @@ Notes on the config:
 - **Polling is slow on purpose** (60–300 s): if the original remote is still used, each frame can collide with it.
 - **Substitutions at the top**: your room thermometer entity in Home Assistant, and optionally the MAC of a SwitchBot Meter the ESP reads directly over Bluetooth (low-duty passive scan, no proxy).
 - **No fallback hotspot**: with `ap:` + `captive_portal`, a Wi-Fi drop made the ESP switch to its own hotspot and barely try to reconnect; removed.
-- **New entities**: `text.poele_plages_<day>`, `number.poele_consigne_esp`, `select.poele_mode_esp`, `switch.poele_programmation_esp` (filled by the package), `sensor.poele_decision_programmation` (what the ESP decides and why), `button.poele_rearmer`, `binary_sensor.poele_alarme_a_traiter_esp`, `number.poele_puissance_de_chauffe_esp` (normal flame level).
+- **New entities**: `text.poele_plages_<day>`, `number.poele_consigne_esp`, `select.poele_mode_esp`, `switch.poele_programmation_esp` (filled by the package), `sensor.poele_decision_programmation` (what the ESP decides and why), `button.poele_rearmer`, `binary_sensor.poele_alarme_a_traiter_esp`, `number.poele_puissance_de_chauffe_esp` (normal flame level), `number.poele_delai_avant_extinction_esp`.
 - **Diagnostics**: free memory, loop time and the cause of the last reboot (power loss, crash, watchdog…) are exposed as sensors.
 
 ## Home Assistant: thermostat & schedule
@@ -277,7 +277,7 @@ flowchart TD
     J -- no --> Z
 ```
 
-<sub>* start below the setpoint; while running, keep heating up to setpoint + 1 °C. Without a valid temperature (none received, or HA unreachable for over 30 min), "time slots + temperature" falls back to time slots only. On/off timers live in the ESP, so reconnections can't reset them.</sub>
+<sub>* start below the setpoint; while running, keep heating until the room has been above setpoint + 1 °C for 10 min. Without a valid temperature (none received, or HA unreachable for over 30 min), "time slots + temperature" falls back to time slots only. On/off timers live in the ESP, so reconnections can't reset them.</sub>
 
 **Flame modulation** while it runs ("En chauffe"):
 
@@ -285,9 +285,9 @@ flowchart TD
 |---|---|
 | below the setpoint | `number.poele_puissance_de_chauffe_esp` (your normal level, 1–5) |
 | from the setpoint to setpoint + 1 °C | 1 (minimum) |
-| setpoint + 1 °C or more | switched off (after the 45 min minimum) |
+| setpoint + 1 °C or more for 10 min in a row | switched off (and at least 45 min after ignition) |
 
-It goes back to the normal level below setpoint − 0.2 °C, so it doesn't change power at every tenth of a degree. In "Horaire seul" mode, or without a temperature, the flame stays at the normal level.
+It goes back to the normal level below setpoint − 0.2 °C, so it doesn't change power at every tenth of a degree. In "Horaire seul" mode, or without a temperature, the flame stays at the normal level. The 10 min delay is `number.poele_delai_avant_extinction_esp` (0–60 min), so a short temperature spike doesn't switch the stove off. This reproduces the Micronova board's own modulation + stand-by, which relies on the remote's probe and can't be used once the remote is retired.
 
 ## Dashboard card
 
